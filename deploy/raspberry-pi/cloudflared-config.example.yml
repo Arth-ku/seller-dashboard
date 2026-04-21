@@ -1,0 +1,19 @@
+# Cloudflare docs reference:
+# https://developers.cloudflare.com/tunnel/advanced/local-management/configuration-file/
+#
+# Replace the placeholders below with your real values:
+# - <TUNNEL-UUID>
+# - /home/pi/.cloudflared/<TUNNEL-UUID>.json
+# - media.example.com
+#
+# This publishes your Raspberry Pi app publicly through Cloudflare Tunnel.
+# It assumes the seller dashboard server is running locally on port 8000
+# with SELLER_DASHBOARD_BASE_PATH=/sell.
+
+tunnel: <TUNNEL-UUID>
+credentials-file: /home/pi/.cloudflared/<TUNNEL-UUID>.json
+
+ingress:
+  - hostname: media.example.com
+    service: http://localhost:8000
+  - service: http_status:404
