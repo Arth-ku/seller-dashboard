@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import cgi
 import json
 import os
 import shutil
 import sqlite3
 import uuid
+from email.parser import BytesParser
+from email.policy import default
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -253,45 +254,68 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
     def handle_upload(self, parsed) -> None:
         query = parse_qs(parsed.query)
         box_id = sanitize_box_id(query.get("boxId", ["UNKNOWN"])[0])
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self.respond_error(HTTPStatus.BAD_REQUEST, "Invalid Content-Length")
 
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-                "CONTENT_LENGTH": self.headers.get("Content-Length", "0"),
-            },
-        )
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
+            return self.respond_error(HTTPStatus.BAD_REQUEST, "Expected multipart form upload")
 
-        files = form["images"] if "images" in form else []
-        if not isinstance(files, list):
-            files = [files]
+        body = self.rfile.read(content_length) if content_length else b""
+        files = self.parse_uploaded_files(content_type, body, field_name="images")
 
         saved_images = []
         target_dir = UPLOADS_DIR / box_id
         target_dir.mkdir(parents=True, exist_ok=True)
 
         for item in files:
-            if not getattr(item, "filename", "") or not getattr(item, "file", None):
+            if not item.get("filename") or item.get("content") is None:
                 continue
 
-            filename = sanitize_filename(item.filename)
+            filename = sanitize_filename(item["filename"])
             saved_name = f"{uuid.uuid4().hex}-{filename}"
             output_path = target_dir / saved_name
             with output_path.open("wb") as handle:
-                shutil.copyfileobj(item.file, handle)
+                handle.write(item["content"])
 
             relative_storage = output_path.relative_to(ROOT).as_posix()
             saved_images.append(
                 {
-                    "name": item.filename,
+                    "name": item["filename"],
                     "url": self.app_url(f"/{relative_storage}"),
                     "storagePath": relative_storage,
                 }
             )
 
         return self.respond_json({"images": saved_images})
+
+    def parse_uploaded_files(self, content_type: str, body: bytes, field_name: str) -> list[dict]:
+        message = BytesParser(policy=default).parsebytes(
+            f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
+        )
+
+        files = []
+        for part in message.iter_parts():
+            if part.get_content_disposition() != "form-data":
+                continue
+
+            if part.get_param("name", header="content-disposition") != field_name:
+                continue
+
+            filename = part.get_filename()
+            if not filename:
+                continue
+
+            files.append(
+                {
+                    "filename": filename,
+                    "content": part.get_payload(decode=True),
+                }
+            )
+
+        return files
 
     def handle_public_product_request(self, normalized_path: str) -> None:
         box_id = unquote(normalized_path.removeprefix("/api/public/products/")).strip().upper()
