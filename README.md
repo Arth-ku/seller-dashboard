@@ -62,9 +62,9 @@ Recommended shape:
 - Private/shared dashboard on the Pi:
   - `http://bluezonee/sell/`
 - Public media + public API from the Pi through Cloudflare Tunnel:
-  - `https://media.example.com/sell/`
-- Public authenticity frontend on Cloudflare Pages:
-  - `https://auth.example.com/628`
+  - `https://authenticitycheck.net/sell/`
+- Public authenticity frontend on the same public domain:
+  - `https://authenticitycheck.net/628`
 
 ### Raspberry Pi server for public API
 
@@ -72,7 +72,7 @@ Run the Pi server with:
 
 ```bash
 SELLER_DASHBOARD_BASE_PATH=/sell \
-SELLER_PUBLIC_ALLOWED_ORIGIN=https://auth.example.com \
+SELLER_PUBLIC_ALLOWED_ORIGIN=https://authenticitycheck.net \
 python3 server.py
 ```
 
@@ -82,43 +82,55 @@ This enables:
 - public product API at `/sell/api/public/products/BOXID`
 - image URLs under `/sell/uploads/...`
 
+### Public domain on the Pi
+
+Use Nginx on the Pi so the public domain serves:
+
+- authenticity frontend at `/620`
+- seller API and images at `/sell/...`
+
+Example Nginx shape:
+
+```nginx
+server {
+    listen 80;
+    server_name authenticitycheck.net www.authenticitycheck.net;
+
+    client_max_body_size 25m;
+
+    location /sell/ {
+        proxy_pass http://127.0.0.1:8000/sell/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    location / {
+        root /home/pi/apps/seller-dashboard/cloudflare-auth;
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
 ### Cloudflare Tunnel
 
-Use `cloudflared` on the Pi and publish a hostname such as:
+Use `cloudflared` on the Pi and publish:
 
-- `media.example.com` -> `http://localhost:8000`
+- `authenticitycheck.net` -> `http://localhost:80`
 
 Cloudflare Tunnel setup docs:
 [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/)
 [Set up Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/setup/)
-
-### Cloudflare Pages authenticity site
-
-Deploy the folder [cloudflare-auth](/Users/arthur/Documents/SALE DASHBOARD/cloudflare-auth) to Cloudflare Pages.
-
-Before deploying, edit:
-[cloudflare-auth/index.html](/Users/arthur/Documents/SALE DASHBOARD/cloudflare-auth/index.html)
-
-Set:
-
-```html
-window.AUTH_APP_CONFIG = {
-  apiBase: "https://media.example.com/sell",
-};
-```
-
-Then deploy that folder as the Pages output directory.
-
-The public authenticity site will work on routes like:
-
-- `https://auth.example.com/628`
-- `https://auth.example.com/628/authenticity`
 
 ### Notes
 
 - Public authenticity pages only expose title, description, price, item name, and uploaded images.
 - They do not expose buyer notes or the private dashboard table.
 - The Pi must be online for public images and authenticity data to load.
+- The public page route can be kept simple, for example `https://authenticitycheck.net/620`.
 
 ## Example configs
 

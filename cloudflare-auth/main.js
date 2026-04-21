@@ -110,6 +110,10 @@ function getBoxIdFromPath() {
     return "";
   }
 
+  if (parts[0].toLowerCase() === "authenticity") {
+    return parts[1] || "";
+  }
+
   if (parts.length >= 2 && parts[1].toLowerCase() === "authenticity") {
     return parts[0];
   }

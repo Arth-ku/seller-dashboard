@@ -4,7 +4,7 @@ This folder is a static authenticity frontend intended for Cloudflare Pages.
 
 ## What it does
 
-- Reads the box ID from a URL like `/628` or `/628/authenticity`
+- Reads the box ID from a URL like `/628`
 - Fetches public authenticity data from your Raspberry Pi server
 - Displays public photos, title, description, and price
 
