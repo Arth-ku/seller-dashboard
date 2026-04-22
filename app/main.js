@@ -252,9 +252,9 @@ function renderProductDetail(boxId) {
               <p>${escapeHtml(imageCountText)}</p>
             </div>
             <label class="upload-zone">
-              <input id="image-input" type="file" accept="image/*" multiple />
+              <input id="image-input" type="file" accept=".webp,.jpg,.jpeg,.png,.gif,.avif,.bmp,.svg,image/webp,image/jpeg,image/png,image/gif,image/avif,image/bmp,image/svg+xml" multiple />
               <span>Upload up to 9 images</span>
-              <small>Photos are stored on the server so every device can see them.</small>
+              <small>Photos are stored on the server so every device can see them. Supports webp, jpg, jpeg, png, gif, avif, bmp, and svg.</small>
             </label>
             <div class="image-grid">
               ${
@@ -266,7 +266,11 @@ function renderProductDetail(boxId) {
                             <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
                             <figcaption>
                               <span>${escapeHtml(image.name || `Image ${index + 1}`)}</span>
-                              <button class="button-link" type="button" data-remove-image="${index}">Remove</button>
+                              <div class="image-actions">
+                                <button class="button-link" type="button" data-move-image="${index}" data-direction="left" ${index === 0 ? "disabled" : ""}>Left</button>
+                                <button class="button-link" type="button" data-move-image="${index}" data-direction="right" ${index === detail.images.length - 1 ? "disabled" : ""}>Right</button>
+                                <button class="button-link" type="button" data-remove-image="${index}">Remove</button>
+                              </div>
                             </figcaption>
                           </figure>
                         `,
@@ -354,7 +358,9 @@ function renderAuthenticityPage(boxId) {
                   .map(
                     (image, index) => `
                       <figure class="image-card authenticity-image-card">
-                        <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
+                        <a class="authenticity-image-link" href="${escapeAttribute(getImageSource(image))}" target="_blank" rel="noopener noreferrer">
+                          <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
+                        </a>
                       </figure>
                     `,
                   )
@@ -658,6 +664,29 @@ function bindDetailEvents(boxId) {
       const index = Number(event.currentTarget.dataset.removeImage);
       const current = collectDetailDraft(boxId);
       current.images = current.images.filter((_, imageIndex) => imageIndex !== index);
+      current.updatedAt = new Date().toISOString();
+      state.productDetails[boxId] = current;
+      await saveProductDetails(state.productDetails);
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-move-image]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const index = Number(event.currentTarget.dataset.moveImage);
+      const direction = event.currentTarget.dataset.direction;
+      const current = collectDetailDraft(boxId);
+      const offset = direction === "left" ? -1 : 1;
+      const nextIndex = index + offset;
+
+      if (nextIndex < 0 || nextIndex >= current.images.length) {
+        return;
+      }
+
+      const reordered = [...current.images];
+      const [selected] = reordered.splice(index, 1);
+      reordered.splice(nextIndex, 0, selected);
+      current.images = reordered;
       current.updatedAt = new Date().toISOString();
       state.productDetails[boxId] = current;
       await saveProductDetails(state.productDetails);

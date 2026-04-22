@@ -481,10 +481,23 @@ textarea:focus {
   font-size: 0.84rem;
 }
 
+.image-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .button-link {
   background: none;
   color: var(--danger);
   font-weight: 700;
+}
+
+.button-link[disabled] {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .delete-row-button {
@@ -567,6 +580,18 @@ textarea:focus {
 
 .authenticity-image-card img {
   height: 220px;
+}
+
+.authenticity-image-link {
+  display: block;
+}
+
+.authenticity-image-link img {
+  transition: transform 160ms ease;
+}
+
+.authenticity-image-link:hover img {
+  transform: scale(1.02);
 }
 
 @media (max-width: 1080px) {

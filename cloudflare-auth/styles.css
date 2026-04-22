@@ -124,6 +124,18 @@ body {
   object-fit: cover;
 }
 
+.image-link {
+  display: block;
+}
+
+.image-link img {
+  transition: transform 160ms ease;
+}
+
+.image-link:hover img {
+  transform: scale(1.02);
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 280px;

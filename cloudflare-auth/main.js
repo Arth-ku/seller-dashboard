@@ -70,7 +70,9 @@ function renderProduct(product) {
                   .map(
                     (image, index) => `
                       <figure class="image-card">
-                        <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
+                        <a class="image-link" href="${escapeAttribute(image.url || "")}" target="_blank" rel="noopener noreferrer">
+                          <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
+                        </a>
                       </figure>
                     `,
                   )
