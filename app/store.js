@@ -5,6 +5,7 @@ const defaultState = {
 };
 
 let cachedState = { ...defaultState };
+let persistQueue = Promise.resolve();
 const APP_CONFIG = window.__APP_CONFIG__ || {};
 const BASE_PATH = normalizeBasePath(APP_CONFIG.basePath);
 
@@ -31,17 +32,19 @@ export async function loadAppState() {
 }
 
 export async function saveRows(rows) {
-  cachedState = { ...cachedState, rows };
-  await persistState();
+  await saveAppState({ rows });
 }
 
 export async function saveProductDetails(productDetails) {
-  cachedState = { ...cachedState, productDetails };
-  await persistState();
+  await saveAppState({ productDetails });
 }
 
 export async function saveMeta(meta) {
-  cachedState = { ...cachedState, meta };
+  await saveAppState({ meta });
+}
+
+export async function saveAppState(partialState) {
+  cachedState = { ...cachedState, ...partialState };
   await persistState();
 }
 
@@ -63,12 +66,18 @@ export async function uploadImages(boxId, files) {
 }
 
 async function persistState() {
+  const snapshot = JSON.stringify(cachedState);
+  persistQueue = persistQueue.then(() => persistSnapshot(snapshot), () => persistSnapshot(snapshot));
+  return persistQueue;
+}
+
+async function persistSnapshot(snapshot) {
   const response = await fetch(toApiUrl("/api/state"), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(cachedState),
+    body: snapshot,
   });
 
   if (!response.ok) {

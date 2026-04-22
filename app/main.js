@@ -8,7 +8,7 @@ import {
   rowsFromCsv,
   serializeRowsToCsv,
 } from "./csv.js";
-import { loadAppState, saveMeta, saveProductDetails, saveRows, uploadImages } from "./store.js";
+import { loadAppState, saveAppState, saveMeta, saveProductDetails, saveRows, uploadImages } from "./store.js";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -500,14 +500,16 @@ function bindDashboardEvents() {
 
     const text = await file.text();
     const importedRows = rowsFromCsv(text);
-    state.rows = pruneRows(importedRows.map(normalizeRowState));
+    const mergedImport = mergeImportedRows(importedRows);
+    state.rows = mergedImport.rows;
+    state.productDetails = mergedImport.productDetails;
     state.meta = {
       ...state.meta,
       lastImportAt: new Date().toISOString(),
       lastImportName: file.name,
     };
 
-    await Promise.all([saveRows(state.rows), saveMeta(state.meta)]);
+    await saveAppState({ rows: state.rows, productDetails: state.productDetails, meta: state.meta });
     setSaveMessage(`Imported ${importedRows.length} row(s) from ${file.name}.`);
     render();
   });
@@ -589,7 +591,7 @@ function bindDashboardEvents() {
 
       Object.assign(row, normalizeRowState(row));
       state.rows = pruneRows(state.rows.map(normalizeRowState));
-      await Promise.all([saveRows(state.rows), saveProductDetails(state.productDetails)]);
+      await saveAppState({ rows: state.rows, productDetails: state.productDetails });
       setSaveMessage(`Saved changes for ${row.boxId}.`);
       render();
     });
@@ -617,7 +619,7 @@ function bindDashboardEvents() {
         delete state.productDetails[row.boxId];
       }
 
-      await Promise.all([saveRows(state.rows), saveProductDetails(state.productDetails)]);
+      await saveAppState({ rows: state.rows, productDetails: state.productDetails });
       setSaveMessage(`Deleted ${row.boxId}.`);
       render();
     });
@@ -684,6 +686,65 @@ function collectDetailDraft(boxId) {
     title: titleInput ? titleInput.value.trim() : current.title,
     description: descriptionInput ? descriptionInput.value.trim() : current.description,
   };
+}
+
+function mergeImportedRows(importedRows) {
+  const nextRows = pruneRows(importedRows.map(normalizeRowState));
+  const previousRowsByBoxId = new Map(
+    state.rows
+      .filter((row) => row?.boxId)
+      .map((row) => [String(row.boxId).toUpperCase(), row]),
+  );
+  const nextDetails = { ...state.productDetails };
+
+  nextRows.forEach((row) => {
+    const boxId = String(row.boxId || "").toUpperCase();
+    if (!boxId || !nextDetails[boxId]) {
+      return;
+    }
+
+    const previousRow = previousRowsByBoxId.get(boxId);
+    if (!previousRow) {
+      return;
+    }
+
+    const detail = nextDetails[boxId];
+    if (shouldRefreshImportedTitle(detail.title, previousRow.itemName, row.itemName)) {
+      nextDetails[boxId] = {
+        ...detail,
+        title: row.itemName || "",
+      };
+    }
+  });
+
+  return {
+    rows: nextRows,
+    productDetails: nextDetails,
+  };
+}
+
+function shouldRefreshImportedTitle(currentTitle, previousItemName, nextItemName) {
+  const current = normalizeComparableTitle(currentTitle);
+  const previous = normalizeComparableTitle(previousItemName);
+  const next = normalizeComparableTitle(nextItemName);
+
+  if (!next) {
+    return false;
+  }
+
+  if (!current) {
+    return true;
+  }
+
+  return current === previous;
+}
+
+function normalizeComparableTitle(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^\d+\s*[-:.)#]*(\s*)?/, "")
+    .replace(/\s+/g, " ")
+    .toUpperCase();
 }
 
 function buildSummary(rows) {
