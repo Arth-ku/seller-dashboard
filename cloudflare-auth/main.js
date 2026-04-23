@@ -1,8 +1,8 @@
 const app = document.querySelector("#app");
 const CONFIG = window.AUTH_APP_CONFIG || {};
-const API_BASE = normalizeBase(CONFIG.apiBase);
+const API_BASE = normalizeBase(CONFIG.apiBase || "/sell");
 
-if (!API_BASE) {
+if (API_BASE == null) {
   renderError("Set `window.AUTH_APP_CONFIG.apiBase` in `cloudflare-auth/index.html` first.");
 } else {
   init().catch((error) => {
