@@ -262,13 +262,12 @@ function renderProductDetail(boxId) {
                   ? detail.images
                       .map(
                         (image, index) => `
-                          <figure class="image-card">
+                          <figure class="image-card draggable-image-card" draggable="true" data-drag-image="${index}">
                             <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
                             <figcaption>
                               <span>${escapeHtml(image.name || `Image ${index + 1}`)}</span>
                               <div class="image-actions">
-                                <button class="button-link" type="button" data-move-image="${index}" data-direction="left" ${index === 0 ? "disabled" : ""}>Left</button>
-                                <button class="button-link" type="button" data-move-image="${index}" data-direction="right" ${index === detail.images.length - 1 ? "disabled" : ""}>Right</button>
+                                <span class="drag-hint">Drag to reorder</span>
                                 <button class="button-link" type="button" data-remove-image="${index}">Remove</button>
                               </div>
                             </figcaption>
@@ -358,9 +357,14 @@ function renderAuthenticityPage(boxId) {
                   .map(
                     (image, index) => `
                       <figure class="image-card authenticity-image-card">
-                        <a class="authenticity-image-link" href="${escapeAttribute(getImageSource(image))}" target="_blank" rel="noopener noreferrer">
+                        <button
+                          class="image-preview-trigger authenticity-image-link"
+                          type="button"
+                          data-preview-image="${escapeAttribute(getImageSource(image))}"
+                          data-preview-name="${escapeAttribute(image.name || `Image ${index + 1}`)}"
+                        >
                           <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
-                        </a>
+                        </button>
                       </figure>
                     `,
                   )
@@ -388,6 +392,7 @@ function renderAuthenticityPage(boxId) {
   `;
 
   app.append(main);
+  bindImagePreviewEvents();
 }
 
 function buildTable(rows) {
@@ -671,21 +676,44 @@ function bindDetailEvents(boxId) {
     });
   });
 
-  document.querySelectorAll("[data-move-image]").forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      const index = Number(event.currentTarget.dataset.moveImage);
-      const direction = event.currentTarget.dataset.direction;
-      const current = collectDetailDraft(boxId);
-      const offset = direction === "left" ? -1 : 1;
-      const nextIndex = index + offset;
+  let draggingIndex = null;
+  document.querySelectorAll("[data-drag-image]").forEach((card) => {
+    card.addEventListener("dragstart", (event) => {
+      draggingIndex = Number(event.currentTarget.dataset.dragImage);
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(draggingIndex));
+      event.currentTarget.classList.add("is-dragging");
+    });
 
-      if (nextIndex < 0 || nextIndex >= current.images.length) {
+    card.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      event.currentTarget.classList.add("is-drag-target");
+    });
+
+    card.addEventListener("dragleave", (event) => {
+      event.currentTarget.classList.remove("is-drag-target");
+    });
+
+    card.addEventListener("dragend", (event) => {
+      draggingIndex = null;
+      event.currentTarget.classList.remove("is-dragging");
+      document.querySelectorAll(".is-drag-target").forEach((element) => element.classList.remove("is-drag-target"));
+    });
+
+    card.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      event.currentTarget.classList.remove("is-drag-target");
+
+      const targetIndex = Number(event.currentTarget.dataset.dragImage);
+      if (!Number.isInteger(draggingIndex) || draggingIndex === targetIndex) {
         return;
       }
 
+      const current = collectDetailDraft(boxId);
       const reordered = [...current.images];
-      const [selected] = reordered.splice(index, 1);
-      reordered.splice(nextIndex, 0, selected);
+      const [selected] = reordered.splice(draggingIndex, 1);
+      reordered.splice(targetIndex, 0, selected);
       current.images = reordered;
       current.updatedAt = new Date().toISOString();
       state.productDetails[boxId] = current;
@@ -693,6 +721,41 @@ function bindDetailEvents(boxId) {
       render();
     });
   });
+}
+
+function bindImagePreviewEvents() {
+  document.querySelectorAll("[data-preview-image]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openImageLightbox(button.dataset.previewImage, button.dataset.previewName);
+    });
+  });
+}
+
+function openImageLightbox(src, name = "Preview") {
+  if (!src) {
+    return;
+  }
+
+  closeImageLightbox();
+  const overlay = document.createElement("div");
+  overlay.className = "image-lightbox";
+  overlay.innerHTML = `
+    <div class="image-lightbox-backdrop" data-close-lightbox></div>
+    <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="${escapeAttribute(name)}">
+      <button class="image-lightbox-close" type="button" data-close-lightbox aria-label="Close image preview">Close</button>
+      <img src="${escapeAttribute(src)}" alt="${escapeAttribute(name)}" />
+    </div>
+  `;
+
+  overlay.querySelectorAll("[data-close-lightbox]").forEach((element) => {
+    element.addEventListener("click", closeImageLightbox);
+  });
+
+  document.body.append(overlay);
+}
+
+function closeImageLightbox() {
+  document.querySelector(".image-lightbox")?.remove();
 }
 
 function createEmptyDetail(boxId) {

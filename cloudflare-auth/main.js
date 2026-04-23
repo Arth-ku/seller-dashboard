@@ -70,9 +70,14 @@ function renderProduct(product) {
                   .map(
                     (image, index) => `
                       <figure class="image-card">
-                        <a class="image-link" href="${escapeAttribute(image.url || "")}" target="_blank" rel="noopener noreferrer">
+                        <button
+                          class="image-link"
+                          type="button"
+                          data-preview-image="${escapeAttribute(image.url || "")}"
+                          data-preview-name="${escapeAttribute(image.name || `Image ${index + 1}`)}"
+                        >
                           <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
-                        </a>
+                        </button>
                       </figure>
                     `,
                   )
@@ -104,6 +109,8 @@ function renderProduct(product) {
       </section>
     </main>
   `;
+
+  bindImagePreviewEvents();
 }
 
 function getBoxIdFromPath() {
@@ -138,6 +145,41 @@ function renderError(message) {
       </section>
     </main>
   `;
+}
+
+function bindImagePreviewEvents() {
+  document.querySelectorAll("[data-preview-image]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openImageLightbox(button.dataset.previewImage, button.dataset.previewName);
+    });
+  });
+}
+
+function openImageLightbox(src, name = "Preview") {
+  if (!src) {
+    return;
+  }
+
+  closeImageLightbox();
+  const overlay = document.createElement("div");
+  overlay.className = "image-lightbox";
+  overlay.innerHTML = `
+    <div class="image-lightbox-backdrop" data-close-lightbox></div>
+    <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="${escapeAttribute(name)}">
+      <button class="image-lightbox-close" type="button" data-close-lightbox aria-label="Close image preview">Close</button>
+      <img src="${escapeAttribute(src)}" alt="${escapeAttribute(name)}" />
+    </div>
+  `;
+
+  overlay.querySelectorAll("[data-close-lightbox]").forEach((element) => {
+    element.addEventListener("click", closeImageLightbox);
+  });
+
+  document.body.append(overlay);
+}
+
+function closeImageLightbox() {
+  document.querySelector(".image-lightbox")?.remove();
 }
 
 function escapeHtml(value) {
