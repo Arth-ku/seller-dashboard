@@ -263,9 +263,9 @@ function renderProductDetail(boxId) {
                       .map(
                         (image, index) => `
                           <figure class="image-card draggable-image-card" draggable="true" data-drag-image="${index}">
-                            <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
+                            <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" draggable="false" />
                             <figcaption>
-                              <span>${escapeHtml(image.name || `Image ${index + 1}`)}</span>
+                              <span class="image-name">${escapeHtml(image.name || `Image ${index + 1}`)}</span>
                               <div class="image-actions">
                                 <span class="drag-hint">Drag to reorder</span>
                                 <button class="button-link" type="button" data-remove-image="${index}">Remove</button>
@@ -357,14 +357,16 @@ function renderAuthenticityPage(boxId) {
                   .map(
                     (image, index) => `
                       <figure class="image-card authenticity-image-card">
-                        <button
+                        <a
                           class="image-preview-trigger authenticity-image-link"
-                          type="button"
+                          href="${escapeAttribute(getImageSource(image))}"
+                          target="_blank"
+                          rel="noopener noreferrer"
                           data-preview-image="${escapeAttribute(getImageSource(image))}"
                           data-preview-name="${escapeAttribute(image.name || `Image ${index + 1}`)}"
                         >
-                          <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
-                        </button>
+                          <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" draggable="false" />
+                        </a>
                       </figure>
                     `,
                   )
@@ -725,7 +727,8 @@ function bindDetailEvents(boxId) {
 
 function bindImagePreviewEvents() {
   document.querySelectorAll("[data-preview-image]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
       openImageLightbox(button.dataset.previewImage, button.dataset.previewName);
     });
   });

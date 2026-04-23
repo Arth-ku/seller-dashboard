@@ -486,12 +486,16 @@ textarea:focus {
 }
 
 .image-card figcaption {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
   padding: 12px;
   font-size: 0.84rem;
+}
+
+.image-name {
+  display: block;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .image-actions {
@@ -499,7 +503,8 @@ textarea:focus {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .drag-hint {

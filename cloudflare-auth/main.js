@@ -70,14 +70,16 @@ function renderProduct(product) {
                   .map(
                     (image, index) => `
                       <figure class="image-card">
-                        <button
+                        <a
                           class="image-link"
-                          type="button"
+                          href="${escapeAttribute(image.url || "")}"
+                          target="_blank"
+                          rel="noopener noreferrer"
                           data-preview-image="${escapeAttribute(image.url || "")}"
                           data-preview-name="${escapeAttribute(image.name || `Image ${index + 1}`)}"
                         >
-                          <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" />
-                        </button>
+                          <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" draggable="false" />
+                        </a>
                       </figure>
                     `,
                   )
@@ -149,7 +151,8 @@ function renderError(message) {
 
 function bindImagePreviewEvents() {
   document.querySelectorAll("[data-preview-image]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
       openImageLightbox(button.dataset.previewImage, button.dataset.previewName);
     });
   });
