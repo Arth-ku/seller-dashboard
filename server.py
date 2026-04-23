@@ -341,9 +341,7 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             public_images.append(
                 {
                     "name": image.get("name", ""),
-                    "url": self.absolute_url(self.public_asset_url(image_url))
-                    if image_url.startswith("/")
-                    else image_url,
+                    "url": self.absolute_url(image_url) if image_url.startswith("/") else image_url,
                 }
             )
 
@@ -473,13 +471,6 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             "Access-Control-Allow-Origin": PUBLIC_ALLOWED_ORIGIN,
             "Vary": "Origin",
         }
-
-    def public_asset_url(self, path: str) -> str:
-        clean_path = str(path or "")
-        uploads_prefix = f"{APP_PREFIX}/uploads/" if APP_PREFIX else "/uploads/"
-        if clean_path.startswith(uploads_prefix):
-            return clean_path[len(APP_PREFIX) :] if APP_PREFIX else clean_path
-        return clean_path
 
     def redirect(self, location: str) -> None:
         self.send_response(HTTPStatus.FOUND)
