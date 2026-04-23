@@ -643,7 +643,7 @@ textarea:focus {
   z-index: 1;
   width: min(92vw, 1200px);
   max-height: 92vh;
-  padding: 20px;
+  padding: 20px 72px 24px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
@@ -669,6 +669,39 @@ textarea:focus {
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+}
+
+.image-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  width: 48px;
+  height: 48px;
+  background: rgba(31, 33, 27, 0.82);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.image-lightbox-nav.prev {
+  left: 12px;
+}
+
+.image-lightbox-nav.next {
+  right: 12px;
+}
+
+.image-lightbox-caption {
+  margin: 14px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.92rem;
+  word-break: break-word;
 }
 
 @media (max-width: 1080px) {

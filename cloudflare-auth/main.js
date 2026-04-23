@@ -75,6 +75,7 @@ function renderProduct(product) {
                           href="${escapeAttribute(image.url || "")}"
                           target="_blank"
                           rel="noopener noreferrer"
+                          data-preview-index="${index}"
                           data-preview-image="${escapeAttribute(image.url || "")}"
                           data-preview-name="${escapeAttribute(image.name || `Image ${index + 1}`)}"
                         >
@@ -150,27 +151,39 @@ function renderError(message) {
 }
 
 function bindImagePreviewEvents() {
-  document.querySelectorAll("[data-preview-image]").forEach((button) => {
+  const previewButtons = Array.from(document.querySelectorAll("[data-preview-image]"));
+  previewButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      openImageLightbox(button.dataset.previewImage, button.dataset.previewName);
+      openImageLightbox(
+        previewButtons.map((element) => ({
+          src: element.dataset.previewImage,
+          name: element.dataset.previewName,
+        })),
+        Number(button.dataset.previewIndex || 0),
+      );
     });
   });
 }
 
-function openImageLightbox(src, name = "Preview") {
-  if (!src) {
+function openImageLightbox(items, initialIndex = 0) {
+  if (!Array.isArray(items) || !items.length) {
     return;
   }
 
   closeImageLightbox();
+  const safeIndex = Math.max(0, Math.min(initialIndex, items.length - 1));
+  const currentItem = items[safeIndex] || items[0];
   const overlay = document.createElement("div");
   overlay.className = "image-lightbox";
   overlay.innerHTML = `
     <div class="image-lightbox-backdrop" data-close-lightbox></div>
-    <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="${escapeAttribute(name)}">
+    <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="${escapeAttribute(currentItem.name || "Preview")}">
       <button class="image-lightbox-close" type="button" data-close-lightbox aria-label="Close image preview">Close</button>
-      <img src="${escapeAttribute(src)}" alt="${escapeAttribute(name)}" />
+      <button class="image-lightbox-nav prev" type="button" data-lightbox-nav="-1" aria-label="Previous image">‹</button>
+      <img class="image-lightbox-photo" src="${escapeAttribute(currentItem.src || "")}" alt="${escapeAttribute(currentItem.name || "Preview")}" />
+      <button class="image-lightbox-nav next" type="button" data-lightbox-nav="1" aria-label="Next image">›</button>
+      <p class="image-lightbox-caption">${escapeHtml(currentItem.name || "")}</p>
     </div>
   `;
 
@@ -178,11 +191,71 @@ function openImageLightbox(src, name = "Preview") {
     element.addEventListener("click", closeImageLightbox);
   });
 
+  const photo = overlay.querySelector(".image-lightbox-photo");
+  const caption = overlay.querySelector(".image-lightbox-caption");
+  const dialog = overlay.querySelector(".image-lightbox-dialog");
+  let currentIndex = safeIndex;
+
+  function renderCurrent() {
+    const item = items[currentIndex];
+    if (!item) {
+      return;
+    }
+
+    photo.src = item.src || "";
+    photo.alt = item.name || "Preview";
+    caption.textContent = item.name || "";
+    dialog.setAttribute("aria-label", item.name || "Preview");
+  }
+
+  function move(step) {
+    if (!items.length) {
+      return;
+    }
+
+    currentIndex = (currentIndex + step + items.length) % items.length;
+    renderCurrent();
+  }
+
+  overlay.querySelectorAll("[data-lightbox-nav]").forEach((button) => {
+    button.addEventListener("click", () => {
+      move(Number(button.dataset.lightboxNav || 0));
+    });
+  });
+
   document.body.append(overlay);
+  window.addEventListener("keydown", handleLightboxKeydown);
+
+  function handleLightboxKeydown(event) {
+    if (event.key === "Escape") {
+      closeImageLightbox();
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      move(-1);
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      move(1);
+    }
+  }
+
+  overlay._handleLightboxKeydown = handleLightboxKeydown;
 }
 
 function closeImageLightbox() {
-  document.querySelector(".image-lightbox")?.remove();
+  const overlay = document.querySelector(".image-lightbox");
+  if (!overlay) {
+    return;
+  }
+
+  if (overlay._handleLightboxKeydown) {
+    window.removeEventListener("keydown", overlay._handleLightboxKeydown);
+  }
+
+  overlay.remove();
 }
 
 function escapeHtml(value) {
