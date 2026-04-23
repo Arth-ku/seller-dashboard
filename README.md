@@ -8,7 +8,7 @@ A lightweight seller inventory app with shared server-side storage, designed to 
 - Mirrors the CSV structure and lets you edit rows directly on the site.
 - Adds a `Box ID` field so every product can open on its own page, like `/628`.
 - Automatically assigns `UNKNOWN1`, `UNKNOWN2`, and so on when a row does not start with a box number.
-- Lets you upload up to 9 images per product page with previews.
+- Lets you upload up to 30 images per product page with previews.
 - Saves custom product `Title` and `Description` per box ID.
 - Provides authenticity pages like `/628/authenticity`.
 - Stores shared data in SQLite and uploaded files on disk, so multiple devices can see the same information.

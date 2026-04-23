@@ -16,6 +16,7 @@ const BASE_PATH = normalizeBasePath(APP_CONFIG.basePath);
 const DASHBOARD_COLUMNS = COLUMN_DEFS.filter(({ key }) =>
   ["boxId", "archived", "itemName"].includes(key),
 );
+const MAX_IMAGES_PER_PRODUCT = 30;
 
 const state = {
   rows: [],
@@ -223,7 +224,7 @@ function renderProductDetail(boxId) {
 
   const row = state.rows.find((entry) => entry.boxId === boxId);
   const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
-  const imageCountText = `${detail.images.length}/9 images uploaded`;
+  const imageCountText = `${detail.images.length}/${MAX_IMAGES_PER_PRODUCT} images uploaded`;
 
   main.innerHTML = `
     <section class="panel detail-panel">
@@ -253,7 +254,7 @@ function renderProductDetail(boxId) {
             </div>
             <label class="upload-zone">
               <input id="image-input" type="file" accept=".webp,.jpg,.jpeg,.png,.gif,.avif,.bmp,.svg,.heic,.heif,image/webp,image/jpeg,image/png,image/gif,image/avif,image/bmp,image/svg+xml,image/heic,image/heif" multiple />
-              <span>Upload up to 9 images</span>
+              <span>Upload up to ${MAX_IMAGES_PER_PRODUCT} images</span>
               <small>Photos are stored on the server so every device can see them. Supports webp, jpg, jpeg, png, gif, avif, bmp, svg, heic, and heif.</small>
             </label>
             <div class="image-grid">
@@ -656,7 +657,7 @@ function bindDetailEvents(boxId) {
     }
 
     const current = collectDetailDraft(boxId);
-    const remainingSlots = Math.max(0, 9 - current.images.length);
+    const remainingSlots = Math.max(0, MAX_IMAGES_PER_PRODUCT - current.images.length);
     const nextFiles = files.slice(0, remainingSlots);
     const uploaded = await uploadImages(boxId, nextFiles);
 
