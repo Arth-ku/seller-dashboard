@@ -23,6 +23,30 @@ PORT = int(os.environ.get("SELLER_DASHBOARD_PORT", "8000"))
 BASE_PATH = os.environ.get("SELLER_DASHBOARD_BASE_PATH", "").strip()
 PUBLIC_ALLOWED_ORIGIN = os.environ.get("SELLER_PUBLIC_ALLOWED_ORIGIN", "*").strip() or "*"
 JSON_HEADERS = {"Content-Type": "application/json; charset=utf-8"}
+APPAREL_MIN_BOX_ID = 1000
+APPAREL_MAX_BOX_ID = 1100
+APPAREL_BRANDS = (
+    "Christian Louboutin",
+    "Balenciaga",
+    "Louis Vuitton",
+    "Gucci",
+    "Prada",
+    "Chanel",
+    "Dior",
+    "Fendi",
+    "Versace",
+    "Burberry",
+    "Saint Laurent",
+    "Yves Saint Laurent",
+    "Valentino",
+    "Givenchy",
+    "Alexander McQueen",
+    "Dolce & Gabbana",
+    "Moncler",
+    "Canada Goose",
+    "Nike",
+    "Adidas",
+)
 
 
 def normalize_base_path(value: str) -> str:
@@ -171,6 +195,48 @@ def strip_box_id_prefix(text: str, box_id: str) -> str:
     return normalized_text
 
 
+def public_product_payload(row: dict | None, detail: dict, box_id: str, request_handler) -> dict:
+    title = strip_box_id_prefix(detail.get("title", ""), box_id)
+    item_name = strip_box_id_prefix((row or {}).get("itemName", ""), box_id)
+    public_images = []
+    for image in detail.get("images", []):
+        image_url = image.get("url") or ""
+        public_images.append(
+            {
+                "name": image.get("name", ""),
+                "url": request_handler.absolute_url(image_url) if image_url.startswith("/") else image_url,
+            }
+        )
+
+    searchable_text = " ".join(
+        [
+            title,
+            item_name,
+            detail.get("description", ""),
+            (row or {}).get("notes", ""),
+        ]
+    )
+
+    return {
+        "boxId": box_id,
+        "itemName": item_name,
+        "title": title,
+        "description": detail.get("description", ""),
+        "price": (row or {}).get("revised") or (row or {}).get("priceListed") or "",
+        "images": public_images,
+        "client": detect_apparel_client(searchable_text),
+        "updatedAt": detail.get("updatedAt", ""),
+    }
+
+
+def detect_apparel_client(text: str) -> str:
+    normalized = str(text or "").lower()
+    for brand in APPAREL_BRANDS:
+        if brand.lower() in normalized:
+            return brand
+    return ""
+
+
 class SellerDashboardHandler(SimpleHTTPRequestHandler):
     def translate_path(self, path: str) -> str:
         normalized_path = self._normalize_request_path(path)
@@ -187,6 +253,9 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
 
         if normalized_path == "/api/state":
             return self.respond_json(load_state())
+
+        if normalized_path == "/api/public/apparel":
+            return self.handle_public_apparel_request()
 
         if normalized_path.startswith("/api/public/products/"):
             return self.handle_public_product_request(normalized_path)
@@ -333,28 +402,47 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         if not row and not detail:
             return self.respond_error(HTTPStatus.NOT_FOUND, "Product not found")
 
-        title = strip_box_id_prefix(detail.get("title", ""), box_id)
-        item_name = strip_box_id_prefix((row or {}).get("itemName", ""), box_id)
-        public_images = []
-        for image in detail.get("images", []):
-            image_url = image.get("url") or ""
-            public_images.append(
-                {
-                    "name": image.get("name", ""),
-                    "url": self.absolute_url(image_url) if image_url.startswith("/") else image_url,
-                }
-            )
-
-        payload = {
-            "boxId": box_id,
-            "itemName": item_name,
-            "title": title,
-            "description": detail.get("description", ""),
-            "price": (row or {}).get("revised") or (row or {}).get("priceListed") or "",
-            "images": public_images,
-            "updatedAt": detail.get("updatedAt", ""),
-        }
+        payload = public_product_payload(row, detail, box_id, self)
         return self.respond_json(payload, extra_headers=self.public_cors_headers())
+
+    def handle_public_apparel_request(self) -> None:
+        state = load_state()
+        rows = state.get("rows", [])
+        details = state.get("productDetails", {})
+        rows_by_box_id = {
+            str(row.get("boxId", "")).upper(): row
+            for row in rows
+            if str(row.get("boxId", "")).strip()
+        }
+
+        products = []
+        for number in range(APPAREL_MIN_BOX_ID, APPAREL_MAX_BOX_ID + 1):
+            box_id = str(number)
+            row = rows_by_box_id.get(box_id)
+            detail = details.get(box_id, {})
+            if not row and not detail:
+                continue
+
+            payload = public_product_payload(row, detail, box_id, self)
+            payload["images"] = payload["images"][:4]
+            products.append(payload)
+
+        clients = sorted(
+            {product["client"] for product in products if product.get("client")},
+            key=str.lower,
+        )
+
+        return self.respond_json(
+            {
+                "range": {
+                    "from": APPAREL_MIN_BOX_ID,
+                    "to": APPAREL_MAX_BOX_ID,
+                },
+                "clients": clients,
+                "products": products,
+            },
+            extra_headers=self.public_cors_headers(),
+        )
 
     def read_json_body(self) -> dict | None:
         try:

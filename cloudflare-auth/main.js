@@ -12,6 +12,11 @@ if (API_BASE == null) {
 }
 
 async function init() {
+  if (isApparelPath()) {
+    await renderApparelPage();
+    return;
+  }
+
   const boxId = getBoxIdFromPath();
   if (!boxId) {
     renderError("No box ID found in this URL.");
@@ -50,6 +55,9 @@ async function init() {
 function renderProduct(product) {
   app.innerHTML = `
     <main class="public-shell">
+      <nav class="public-nav">
+        <a class="back-link" href="/apparel">Back to Apparel</a>
+      </nav>
       <section class="public-card hero-card">
         <p class="eyebrow">Authenticity</p>
         <h1>${escapeHtml(product.boxId || "Unknown")}</h1>
@@ -116,6 +124,131 @@ function renderProduct(product) {
   bindImagePreviewEvents();
 }
 
+async function renderApparelPage() {
+  app.innerHTML = `
+    <main class="public-shell">
+      <section class="public-card loading-card">
+        <p class="eyebrow">Apparel</p>
+        <h1>Apparel</h1>
+        <p class="muted">Loading available boxes...</p>
+      </section>
+    </main>
+  `;
+
+  const response = await fetch(`${API_BASE}/api/public/apparel`, {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Public apparel request failed with status ${response.status}`);
+  }
+
+  const payload = await response.json();
+  renderApparelList(Array.isArray(payload.products) ? payload.products : [], Array.isArray(payload.clients) ? payload.clients : []);
+}
+
+function renderApparelList(products, clients) {
+  app.innerHTML = `
+    <main class="public-shell apparel-shell">
+      <section class="apparel-header">
+        <div>
+          <p class="eyebrow">Apparel</p>
+          <h1>Apparel</h1>
+          <p class="subtitle">${escapeHtml(products.length ? `${products.length} boxes from 1000 to 1100` : "No boxes found from 1000 to 1100.")}</p>
+        </div>
+        <div class="apparel-controls">
+          <label class="control-field">
+            <span>Search</span>
+            <input id="apparel-search" type="search" placeholder="Search box, title, price..." />
+          </label>
+          <label class="control-field">
+            <span>Client</span>
+            <select id="apparel-client">
+              <option value="">All clients</option>
+              ${clients.map((client) => `<option value="${escapeAttribute(client)}">${escapeHtml(client)}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+      </section>
+      <section id="apparel-results" class="apparel-grid"></section>
+    </main>
+  `;
+
+  const searchInput = document.querySelector("#apparel-search");
+  const clientSelect = document.querySelector("#apparel-client");
+  const renderResults = () => {
+    const term = String(searchInput?.value || "").trim().toLowerCase();
+    const client = String(clientSelect?.value || "");
+    const filtered = products.filter((product) => {
+      if (client && product.client !== client) {
+        return false;
+      }
+
+      if (!term) {
+        return true;
+      }
+
+      return [product.boxId, product.title, product.itemName, product.price, product.client]
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    });
+
+    renderApparelResults(filtered);
+  };
+
+  searchInput?.addEventListener("input", renderResults);
+  clientSelect?.addEventListener("change", renderResults);
+  renderResults();
+}
+
+function renderApparelResults(products) {
+  const results = document.querySelector("#apparel-results");
+  if (!results) {
+    return;
+  }
+
+  if (!products.length) {
+    results.innerHTML = `<p class="muted empty-results">No apparel boxes match this search.</p>`;
+    return;
+  }
+
+  results.innerHTML = products.map(renderApparelCard).join("");
+}
+
+function renderApparelCard(product) {
+  const href = `/${encodeURIComponent(product.boxId || "")}`;
+  const title = product.title || product.itemName || "No title added yet.";
+  const images = Array.isArray(product.images) ? product.images.slice(0, 4) : [];
+  return `
+    <a class="apparel-card" href="${escapeAttribute(href)}">
+      <div class="apparel-preview ${images.length > 1 ? "has-multiple" : ""}">
+        ${
+          images.length
+            ? images
+                .map(
+                  (image, index) => `
+                    <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Preview ${index + 1}`)}" loading="lazy" />
+                  `,
+                )
+                .join("")
+            : `<div class="apparel-no-photo">No photo</div>`
+        }
+      </div>
+      <div class="apparel-card-body">
+        <div class="apparel-card-topline">
+          <span class="box-pill">${escapeHtml(product.boxId || "Unknown")}</span>
+          <span class="price-pill">${escapeHtml(product.price || "No price")}</span>
+        </div>
+        <h2>${escapeHtml(title)}</h2>
+        ${product.client ? `<p class="client-label">${escapeHtml(product.client)}</p>` : ""}
+      </div>
+    </a>
+  `;
+}
+
 function getBoxIdFromPath() {
   const parts = decodeURIComponent(window.location.pathname).split("/").filter(Boolean);
   if (!parts.length) {
@@ -131,6 +264,11 @@ function getBoxIdFromPath() {
   }
 
   return parts[0];
+}
+
+function isApparelPath() {
+  const parts = decodeURIComponent(window.location.pathname).split("/").filter(Boolean);
+  return parts.length === 1 && parts[0].toLowerCase() === "apparel";
 }
 
 function normalizeBase(value) {
