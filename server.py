@@ -237,6 +237,14 @@ def detect_apparel_client(text: str) -> str:
     return ""
 
 
+def has_public_apparel_content(product: dict) -> bool:
+    return bool(
+        str(product.get("title") or "").strip()
+        or str(product.get("description") or "").strip()
+        or product.get("images")
+    )
+
+
 class SellerDashboardHandler(SimpleHTTPRequestHandler):
     def translate_path(self, path: str) -> str:
         normalized_path = self._normalize_request_path(path)
@@ -425,6 +433,9 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
 
             payload = public_product_payload(row, detail, box_id, self)
             payload["images"] = payload["images"][:1]
+            if not has_public_apparel_content(payload):
+                continue
+
             products.append(payload)
 
         clients = sorted(
