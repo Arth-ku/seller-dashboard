@@ -53,11 +53,10 @@ async function init() {
 }
 
 function renderProduct(product) {
+  const cameFromApparel = new URLSearchParams(window.location.search).get("from") === "apparel";
   app.innerHTML = `
     <main class="public-shell">
-      <nav class="public-nav">
-        <a class="back-link" href="/apparel">Back to Apparel</a>
-      </nav>
+      ${cameFromApparel ? `<nav class="public-nav"><a class="back-link" href="/apparel">Back to Apparel</a></nav>` : ""}
       <section class="public-card hero-card">
         <p class="eyebrow">Authenticity</p>
         <h1>${escapeHtml(product.boxId || "Unknown")}</h1>
@@ -153,23 +152,21 @@ function renderApparelList(products, clients) {
   app.innerHTML = `
     <main class="public-shell apparel-shell">
       <section class="apparel-header">
-        <div>
-          <p class="eyebrow">Apparel</p>
-          <h1>Apparel</h1>
-          <p class="subtitle">${escapeHtml(products.length ? `${products.length} boxes from 1000 to 1100` : "No boxes found from 1000 to 1100.")}</p>
-        </div>
         <div class="apparel-controls">
           <label class="control-field">
             <span>Search</span>
             <input id="apparel-search" type="search" placeholder="Search box, title, price..." />
           </label>
-          <label class="control-field">
-            <span>Client</span>
-            <select id="apparel-client">
-              <option value="">All clients</option>
-              ${clients.map((client) => `<option value="${escapeAttribute(client)}">${escapeHtml(client)}</option>`).join("")}
-            </select>
-          </label>
+          <div class="client-filter" role="group" aria-label="Client filter">
+            <button class="client-filter-button is-active" type="button" data-client-filter="">All</button>
+            ${clients
+              .map(
+                (client) => `
+                  <button class="client-filter-button" type="button" data-client-filter="${escapeAttribute(client)}">${escapeHtml(client)}</button>
+                `,
+              )
+              .join("")}
+          </div>
         </div>
       </section>
       <section id="apparel-results" class="apparel-grid"></section>
@@ -177,12 +174,12 @@ function renderApparelList(products, clients) {
   `;
 
   const searchInput = document.querySelector("#apparel-search");
-  const clientSelect = document.querySelector("#apparel-client");
+  const clientButtons = Array.from(document.querySelectorAll("[data-client-filter]"));
+  let selectedClient = "";
   const renderResults = () => {
     const term = String(searchInput?.value || "").trim().toLowerCase();
-    const client = String(clientSelect?.value || "");
     const filtered = products.filter((product) => {
-      if (client && product.client !== client) {
+      if (selectedClient && product.client !== selectedClient) {
         return false;
       }
 
@@ -200,7 +197,13 @@ function renderApparelList(products, clients) {
   };
 
   searchInput?.addEventListener("input", renderResults);
-  clientSelect?.addEventListener("change", renderResults);
+  clientButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedClient = button.dataset.clientFilter || "";
+      clientButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+      renderResults();
+    });
+  });
   renderResults();
 }
 
@@ -219,8 +222,8 @@ function renderApparelResults(products) {
 }
 
 function renderApparelCard(product) {
-  const href = `/${encodeURIComponent(product.boxId || "")}`;
-  const title = product.title || product.itemName || "No title added yet.";
+  const href = `/${encodeURIComponent(product.boxId || "")}?from=apparel`;
+  const title = product.title || product.itemName || "";
   const images = Array.isArray(product.images) ? product.images.slice(0, 4) : [];
   return `
     <a class="apparel-card" href="${escapeAttribute(href)}">
@@ -242,7 +245,7 @@ function renderApparelCard(product) {
           <span class="box-pill">${escapeHtml(product.boxId || "Unknown")}</span>
           <span class="price-pill">${escapeHtml(product.price || "No price")}</span>
         </div>
-        <h2>${escapeHtml(title)}</h2>
+        ${title ? `<h2>${escapeHtml(title)}</h2>` : ""}
         ${product.client ? `<p class="client-label">${escapeHtml(product.client)}</p>` : ""}
       </div>
     </a>

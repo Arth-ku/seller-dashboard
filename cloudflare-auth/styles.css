@@ -265,18 +265,14 @@ body {
 }
 
 .apparel-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 8px 0 18px;
+  padding: 4px 0 18px;
 }
 
 .apparel-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(260px, 380px) 1fr;
   gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: end;
 }
 
 .control-field {
@@ -295,11 +291,55 @@ body {
 .control-field select {
   min-height: 44px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
   color: var(--text);
   font: inherit;
-  padding: 10px 12px;
+  padding: 11px 14px;
+  box-shadow: 0 10px 26px rgba(24, 28, 22, 0.06);
+}
+
+.control-field input:focus,
+.control-field select:focus {
+  outline: 2px solid rgba(29, 93, 79, 0.18);
+  border-color: var(--brand);
+}
+
+.client-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.client-filter-button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 0 13px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.client-filter-button:hover {
+  border-color: rgba(29, 93, 79, 0.24);
+}
+
+.client-filter-button.is-active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
 }
 
 .apparel-grid {
@@ -418,11 +458,15 @@ body {
   }
 
   .apparel-controls {
-    justify-content: stretch;
+    grid-template-columns: 1fr;
   }
 
   .control-field {
     flex: 1 1 240px;
+  }
+
+  .client-filter {
+    justify-content: flex-start;
   }
 }
 
