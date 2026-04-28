@@ -424,7 +424,7 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 continue
 
             payload = public_product_payload(row, detail, box_id, self)
-            payload["images"] = payload["images"][:4]
+            payload["images"] = payload["images"][:1]
             products.append(payload)
 
         clients = sorted(

@@ -224,16 +224,16 @@ function renderApparelResults(products) {
 function renderApparelCard(product) {
   const href = `/${encodeURIComponent(product.boxId || "")}?from=apparel`;
   const title = product.title || product.itemName || "";
-  const images = Array.isArray(product.images) ? product.images.slice(0, 4) : [];
+  const images = Array.isArray(product.images) ? product.images.slice(0, 1) : [];
   return `
     <a class="apparel-card" href="${escapeAttribute(href)}">
-      <div class="apparel-preview ${images.length > 1 ? "has-multiple" : ""}">
+      <div class="apparel-preview">
         ${
           images.length
             ? images
                 .map(
                   (image, index) => `
-                    <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Preview ${index + 1}`)}" loading="lazy" />
+                    <img src="${escapeAttribute(image.url || "")}" alt="${escapeAttribute(image.name || `Preview ${index + 1}`)}" loading="lazy" decoding="async" fetchpriority="low" />
                   `,
                 )
                 .join("")
