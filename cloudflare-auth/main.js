@@ -12,8 +12,9 @@ if (API_BASE == null) {
 }
 
 async function init() {
-  if (isApparelPath()) {
-    await renderApparelPage();
+  const catalog = getCatalogFromPath();
+  if (catalog) {
+    await renderCatalogPage(catalog);
     return;
   }
 
@@ -53,10 +54,14 @@ async function init() {
 }
 
 function renderProduct(product) {
-  const cameFromApparel = new URLSearchParams(window.location.search).get("from") === "apparel";
+  const sourceCatalog = getSourceCatalog();
   app.innerHTML = `
     <main class="public-shell">
-      ${cameFromApparel ? `<nav class="public-nav"><a class="back-link" href="/apparel">Back to Apparel</a></nav>` : ""}
+      ${
+        sourceCatalog
+          ? `<nav class="public-nav"><a class="back-link" href="/${sourceCatalog.path}">Back to ${escapeHtml(sourceCatalog.label)}</a></nav>`
+          : ""
+      }
       <section class="public-card hero-card">
         <p class="eyebrow">Authenticity</p>
         <h1>${escapeHtml(product.boxId || "Unknown")}</h1>
@@ -123,32 +128,32 @@ function renderProduct(product) {
   bindImagePreviewEvents();
 }
 
-async function renderApparelPage() {
+async function renderCatalogPage(catalog) {
   app.innerHTML = `
     <main class="public-shell">
       <section class="public-card loading-card">
-        <p class="eyebrow">Apparel</p>
-        <h1>Apparel</h1>
+        <p class="eyebrow">${escapeHtml(catalog.label)}</p>
+        <h1>${escapeHtml(catalog.label)}</h1>
         <p class="muted">Loading available boxes...</p>
       </section>
     </main>
   `;
 
-  const response = await fetch(`${API_BASE}/api/public/apparel`, {
+  const response = await fetch(`${API_BASE}/api/public/${catalog.path}`, {
     headers: {
       Accept: "application/json",
     },
   });
 
   if (!response.ok) {
-    throw new Error(`Public apparel request failed with status ${response.status}`);
+    throw new Error(`Public ${catalog.path} request failed with status ${response.status}`);
   }
 
   const payload = await response.json();
-  renderApparelList(Array.isArray(payload.products) ? payload.products : [], Array.isArray(payload.clients) ? payload.clients : []);
+  renderCatalogList(catalog, Array.isArray(payload.products) ? payload.products : [], Array.isArray(payload.clients) ? payload.clients : []);
 }
 
-function renderApparelList(products, clients) {
+function renderCatalogList(catalog, products, clients) {
   app.innerHTML = `
     <main class="public-shell apparel-shell">
       <section class="apparel-header">
@@ -157,7 +162,7 @@ function renderApparelList(products, clients) {
             <span>Search</span>
             <input id="apparel-search" type="search" placeholder="Search box, title, price..." />
           </label>
-          <div class="client-filter" role="group" aria-label="Client filter">
+          <div class="client-filter" role="group" aria-label="${escapeAttribute(catalog.label)} client filter">
             <button class="client-filter-button is-active" type="button" data-client-filter="">All</button>
             ${clients
               .map(
@@ -193,7 +198,7 @@ function renderApparelList(products, clients) {
         .includes(term);
     });
 
-    renderApparelResults(filtered);
+    renderCatalogResults(catalog, filtered);
   };
 
   searchInput?.addEventListener("input", renderResults);
@@ -207,22 +212,22 @@ function renderApparelList(products, clients) {
   renderResults();
 }
 
-function renderApparelResults(products) {
+function renderCatalogResults(catalog, products) {
   const results = document.querySelector("#apparel-results");
   if (!results) {
     return;
   }
 
   if (!products.length) {
-    results.innerHTML = `<p class="muted empty-results">No apparel boxes match this search.</p>`;
+    results.innerHTML = `<p class="muted empty-results">No ${escapeHtml(catalog.label.toLowerCase())} boxes match this search.</p>`;
     return;
   }
 
-  results.innerHTML = products.map(renderApparelCard).join("");
+  results.innerHTML = products.map((product) => renderCatalogCard(product, catalog)).join("");
 }
 
-function renderApparelCard(product) {
-  const href = `/${encodeURIComponent(product.boxId || "")}?from=apparel`;
+function renderCatalogCard(product, catalog) {
+  const href = `/${encodeURIComponent(product.boxId || "")}?from=${encodeURIComponent(catalog.path)}`;
   const title = product.title || product.itemName || "";
   const images = Array.isArray(product.images) ? product.images.slice(0, 1) : [];
   return `
@@ -269,9 +274,33 @@ function getBoxIdFromPath() {
   return parts[0];
 }
 
-function isApparelPath() {
+function getCatalogFromPath() {
   const parts = decodeURIComponent(window.location.pathname).split("/").filter(Boolean);
-  return parts.length === 1 && parts[0].toLowerCase() === "apparel";
+  if (parts.length !== 1) {
+    return null;
+  }
+
+  return getCatalogConfig(parts[0]);
+}
+
+function getSourceCatalog() {
+  return getCatalogConfig(new URLSearchParams(window.location.search).get("from"));
+}
+
+function getCatalogConfig(value) {
+  const key = String(value || "").toLowerCase();
+  const catalogs = {
+    apparel: {
+      path: "apparel",
+      label: "Apparel",
+    },
+    hvac: {
+      path: "hvac",
+      label: "HVAC",
+    },
+  };
+
+  return catalogs[key] || null;
 }
 
 function normalizeBase(value) {

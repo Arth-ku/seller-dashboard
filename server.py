@@ -47,6 +47,42 @@ APPAREL_BRANDS = (
     "Nike",
     "Adidas",
 )
+HVAC_MIN_BOX_ID = 700
+HVAC_MAX_BOX_ID = 800
+HVAC_BRANDS = (
+    "Carrier",
+    "Trane",
+    "Lennox",
+    "Goodman",
+    "Rheem",
+    "Ruud",
+    "York",
+    "Mitsubishi",
+    "Daikin",
+    "Fujitsu",
+    "LG",
+    "Samsung",
+    "Frigidaire",
+    "Midea",
+    "Hisense",
+    "Toshiba",
+    "Honeywell",
+    "Whynter",
+    "DeLonghi",
+    "BLACK+DECKER",
+)
+CATALOGS = {
+    "apparel": {
+        "from": APPAREL_MIN_BOX_ID,
+        "to": APPAREL_MAX_BOX_ID,
+        "clients": APPAREL_BRANDS,
+    },
+    "hvac": {
+        "from": HVAC_MIN_BOX_ID,
+        "to": HVAC_MAX_BOX_ID,
+        "clients": HVAC_BRANDS,
+    },
+}
 
 
 def normalize_base_path(value: str) -> str:
@@ -195,7 +231,13 @@ def strip_box_id_prefix(text: str, box_id: str) -> str:
     return normalized_text
 
 
-def public_product_payload(row: dict | None, detail: dict, box_id: str, request_handler) -> dict:
+def public_product_payload(
+    row: dict | None,
+    detail: dict,
+    box_id: str,
+    request_handler,
+    client_brands: tuple[str, ...] = APPAREL_BRANDS,
+) -> dict:
     title = strip_box_id_prefix(detail.get("title", ""), box_id)
     item_name = strip_box_id_prefix((row or {}).get("itemName", ""), box_id)
     public_images = []
@@ -224,20 +266,20 @@ def public_product_payload(row: dict | None, detail: dict, box_id: str, request_
         "description": detail.get("description", ""),
         "price": (row or {}).get("revised") or (row or {}).get("priceListed") or "",
         "images": public_images,
-        "client": detect_apparel_client(searchable_text),
+        "client": detect_catalog_client(searchable_text, client_brands),
         "updatedAt": detail.get("updatedAt", ""),
     }
 
 
-def detect_apparel_client(text: str) -> str:
+def detect_catalog_client(text: str, client_brands: tuple[str, ...]) -> str:
     normalized = str(text or "").lower()
-    for brand in APPAREL_BRANDS:
+    for brand in client_brands:
         if brand.lower() in normalized:
             return brand
     return ""
 
 
-def has_public_apparel_content(product: dict) -> bool:
+def has_public_catalog_content(product: dict) -> bool:
     return bool(
         str(product.get("title") or "").strip()
         or str(product.get("description") or "").strip()
@@ -263,7 +305,10 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             return self.respond_json(load_state())
 
         if normalized_path == "/api/public/apparel":
-            return self.handle_public_apparel_request()
+            return self.handle_public_catalog_request("apparel")
+
+        if normalized_path == "/api/public/hvac":
+            return self.handle_public_catalog_request("hvac")
 
         if normalized_path.startswith("/api/public/products/"):
             return self.handle_public_product_request(normalized_path)
@@ -413,7 +458,8 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         payload = public_product_payload(row, detail, box_id, self)
         return self.respond_json(payload, extra_headers=self.public_cors_headers())
 
-    def handle_public_apparel_request(self) -> None:
+    def handle_public_catalog_request(self, catalog_name: str) -> None:
+        catalog = CATALOGS[catalog_name]
         state = load_state()
         rows = state.get("rows", [])
         details = state.get("productDetails", {})
@@ -424,16 +470,16 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         }
 
         products = []
-        for number in range(APPAREL_MIN_BOX_ID, APPAREL_MAX_BOX_ID + 1):
+        for number in range(catalog["from"], catalog["to"] + 1):
             box_id = str(number)
             row = rows_by_box_id.get(box_id)
             detail = details.get(box_id, {})
             if not row and not detail:
                 continue
 
-            payload = public_product_payload(row, detail, box_id, self)
+            payload = public_product_payload(row, detail, box_id, self, catalog["clients"])
             payload["images"] = payload["images"][:1]
-            if not has_public_apparel_content(payload):
+            if not has_public_catalog_content(payload):
                 continue
 
             products.append(payload)
@@ -446,9 +492,10 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         return self.respond_json(
             {
                 "range": {
-                    "from": APPAREL_MIN_BOX_ID,
-                    "to": APPAREL_MAX_BOX_ID,
+                    "from": catalog["from"],
+                    "to": catalog["to"],
                 },
+                "catalog": catalog_name,
                 "clients": clients,
                 "products": products,
             },
