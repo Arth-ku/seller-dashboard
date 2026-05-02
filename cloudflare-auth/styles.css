@@ -31,8 +31,6 @@ body {
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  display: grid;
-  align-items: end;
   padding: 28px;
   color: #fff;
 }
@@ -59,8 +57,10 @@ body {
 }
 
 .startup-panel {
-  width: min(980px, 100%);
-  display: grid;
+  min-height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   gap: 24px;
 }
 
@@ -85,10 +85,15 @@ body {
 }
 
 .startup-control-row {
+  position: fixed;
+  left: 28px;
+  right: 28px;
+  bottom: max(18px, env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: minmax(0, 760px) auto;
   gap: 12px;
   align-items: center;
+  width: min(1320px, calc(100vw - 56px));
 }
 
 .startup-search input {
@@ -652,6 +657,10 @@ body {
     padding: 18px;
   }
 
+  .startup-panel {
+    min-height: calc(100vh - 36px);
+  }
+
   .startup-panel h1 {
     font-size: 3.2rem;
   }
@@ -662,6 +671,10 @@ body {
 
   .startup-control-row {
     grid-template-columns: 1fr;
+    left: 18px;
+    right: 18px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    width: calc(100vw - 36px);
   }
 
   .startup-action-button,
