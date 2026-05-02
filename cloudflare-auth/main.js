@@ -138,16 +138,18 @@ function renderProduct(product) {
 function renderHomePage() {
   app.innerHTML = `
     <main class="startup-page">
-      <video id="startup-video" class="startup-video" src="/assets/startup.mp4" autoplay loop muted playsinline></video>
+      <video id="startup-video" class="startup-video" src="/assets/startup.mp4" autoplay loop playsinline></video>
       <div class="startup-shade"></div>
       <section class="startup-panel">
         <h1>Authenticity Check</h1>
-        <form id="home-search-form" class="startup-search">
-          <input id="home-search-input" type="search" inputmode="search" autocomplete="off" placeholder="Box ID" aria-label="Search box ID" />
-          <button class="startup-action-button" type="submit">Search</button>
-          <button id="qr-scan-button" class="startup-qr-button" type="button" aria-label="Scan QR code">QR</button>
-        </form>
-        <button id="sound-toggle" class="sound-toggle" type="button">Sound</button>
+        <div class="startup-control-row">
+          <form id="home-search-form" class="startup-search">
+            <input id="home-search-input" type="search" inputmode="search" autocomplete="off" placeholder="Box ID" aria-label="Search box ID" />
+            <button class="startup-action-button" type="submit">Search</button>
+            <button id="qr-scan-button" class="startup-qr-button" type="button" aria-label="Scan QR code">QR</button>
+          </form>
+          <button id="sound-toggle" class="sound-toggle is-on" type="button">Sound On</button>
+        </div>
       </section>
     </main>
   `;
@@ -182,7 +184,25 @@ function bindHomeEvents() {
     await startupVideo.play().catch(() => {});
   });
 
-  startupVideo?.play().catch(() => {});
+  if (startupVideo) {
+    startupVideo.muted = false;
+    startupVideo
+      .play()
+      .then(() => {
+        soundButton?.classList.add("is-on");
+        if (soundButton) {
+          soundButton.textContent = "Sound On";
+        }
+      })
+      .catch(async () => {
+        startupVideo.muted = true;
+        soundButton?.classList.remove("is-on");
+        if (soundButton) {
+          soundButton.textContent = "Sound";
+        }
+        await startupVideo.play().catch(() => {});
+      });
+  }
 }
 
 function navigateFromCode(value) {
@@ -223,21 +243,12 @@ async function openQrScanner() {
       <button class="qr-close" type="button" data-close-qr aria-label="Close QR scanner">Close</button>
       <video id="qr-camera" class="qr-camera" autoplay muted playsinline></video>
       <p id="qr-status" class="qr-status">Opening camera...</p>
-      <form id="qr-fallback-form" class="qr-fallback">
-        <input id="qr-fallback-input" type="search" placeholder="Box ID" aria-label="Box ID" />
-        <button type="submit">Open</button>
-      </form>
     </section>
   `;
 
   document.body.append(overlay);
   overlay.querySelectorAll("[data-close-qr]").forEach((element) => {
     element.addEventListener("click", closeQrScanner);
-  });
-
-  overlay.querySelector("#qr-fallback-form")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    navigateFromCode(overlay.querySelector("#qr-fallback-input")?.value || "");
   });
 
   const status = overlay.querySelector("#qr-status");
@@ -253,12 +264,12 @@ async function openQrScanner() {
     video.srcObject = qrStream;
     await video.play();
   } catch {
-    status.textContent = "Camera is unavailable. Enter the box ID below.";
+    status.textContent = "Camera is unavailable.";
     return;
   }
 
   if (!("BarcodeDetector" in window)) {
-    status.textContent = "Camera is open. This browser cannot read QR codes here, so enter the box ID below.";
+    status.textContent = "QR scanning is unavailable in this browser.";
     return;
   }
 
@@ -266,7 +277,7 @@ async function openQrScanner() {
   try {
     detector = new BarcodeDetector({ formats: ["qr_code"] });
   } catch {
-    status.textContent = "Camera is open. QR decoding is unavailable here, so enter the box ID below.";
+    status.textContent = "QR decoding is unavailable in this browser.";
     return;
   }
 
@@ -277,8 +288,14 @@ async function openQrScanner() {
       const codes = await detector.detect(video);
       const rawValue = codes[0]?.rawValue;
       if (rawValue) {
-        closeQrScanner();
-        navigateFromCode(rawValue);
+        const destination = getDestinationFromQrCode(rawValue);
+        if (destination) {
+          closeQrScanner();
+          window.location.href = destination;
+          return;
+        }
+
+        status.textContent = "QR code is not a valid product URL.";
         return;
       }
     } catch {
@@ -289,6 +306,14 @@ async function openQrScanner() {
   };
 
   scan();
+}
+
+function getDestinationFromQrCode(value) {
+  try {
+    return new URL(String(value || "").trim()).href;
+  } catch {
+    return "";
+  }
 }
 
 function closeQrScanner() {
