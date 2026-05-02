@@ -3,6 +3,7 @@ const CONFIG = window.AUTH_APP_CONFIG || {};
 const API_BASE = normalizeBase(CONFIG.apiBase || "/sell");
 let qrStream = null;
 let qrScanFrame = null;
+let qrScanTimeout = null;
 
 if (API_BASE == null) {
   renderError("Set `window.AUTH_APP_CONFIG.apiBase` in `cloudflare-auth/index.html` first.");
@@ -268,25 +269,35 @@ async function openQrScanner() {
     return;
   }
 
-  if (!("BarcodeDetector" in window)) {
-    status.textContent = "QR scanning is unavailable in this browser.";
-    return;
+  let detector = null;
+  if ("BarcodeDetector" in window) {
+    try {
+      detector = new BarcodeDetector({ formats: ["qr_code"] });
+    } catch {
+      detector = null;
+    }
   }
 
-  let detector;
-  try {
-    detector = new BarcodeDetector({ formats: ["qr_code"] });
-  } catch {
-    status.textContent = "QR decoding is unavailable in this browser.";
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const canUseFallbackScanner = typeof window.jsQR === "function" && context;
+  if (!detector && !canUseFallbackScanner) {
+    status.textContent = "QR reader failed to load. Refresh and try again.";
     return;
   }
 
   status.textContent = "Point camera at QR code.";
 
+  const queueScan = (delay = 160) => {
+    qrScanTimeout = window.setTimeout(() => {
+      qrScanTimeout = null;
+      qrScanFrame = window.requestAnimationFrame(scan);
+    }, delay);
+  };
+
   const scan = async () => {
     try {
-      const codes = await detector.detect(video);
-      const rawValue = codes[0]?.rawValue;
+      const rawValue = detector ? await scanWithBarcodeDetector(detector, video) : scanWithJsQr(video, canvas, context);
       if (rawValue) {
         const destination = getDestinationFromQrCode(rawValue);
         if (destination) {
@@ -296,16 +307,40 @@ async function openQrScanner() {
         }
 
         status.textContent = "QR code is not a valid product URL.";
+        queueScan(700);
         return;
       }
     } catch {
       status.textContent = "Still looking for QR code...";
     }
 
-    qrScanFrame = window.requestAnimationFrame(scan);
+    queueScan();
   };
 
   scan();
+}
+
+async function scanWithBarcodeDetector(detector, video) {
+  const codes = await detector.detect(video);
+  return codes[0]?.rawValue || "";
+}
+
+function scanWithJsQr(video, canvas, context) {
+  if (!video.videoWidth || !video.videoHeight) {
+    return "";
+  }
+
+  const maxWidth = 900;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  canvas.width = Math.max(1, Math.floor(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.floor(video.videoHeight * scale));
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+    inversionAttempts: "attemptBoth",
+  });
+  return code?.data || "";
 }
 
 function getDestinationFromQrCode(value) {
@@ -320,6 +355,11 @@ function closeQrScanner() {
   if (qrScanFrame) {
     window.cancelAnimationFrame(qrScanFrame);
     qrScanFrame = null;
+  }
+
+  if (qrScanTimeout) {
+    window.clearTimeout(qrScanTimeout);
+    qrScanTimeout = null;
   }
 
   if (qrStream) {
