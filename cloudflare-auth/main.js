@@ -1,6 +1,8 @@
 const app = document.querySelector("#app");
 const CONFIG = window.AUTH_APP_CONFIG || {};
 const API_BASE = normalizeBase(CONFIG.apiBase || "/sell");
+let qrStream = null;
+let qrScanFrame = null;
 
 if (API_BASE == null) {
   renderError("Set `window.AUTH_APP_CONFIG.apiBase` in `cloudflare-auth/index.html` first.");
@@ -12,6 +14,11 @@ if (API_BASE == null) {
 }
 
 async function init() {
+  if (isRootPath()) {
+    renderHomePage();
+    return;
+  }
+
   const catalog = getCatalogFromPath();
   if (catalog) {
     await renderCatalogPage(catalog);
@@ -126,6 +133,176 @@ function renderProduct(product) {
   `;
 
   bindImagePreviewEvents();
+}
+
+function renderHomePage() {
+  app.innerHTML = `
+    <main class="startup-page">
+      <video id="startup-video" class="startup-video" src="/assets/startup.mp4" autoplay loop muted playsinline></video>
+      <div class="startup-shade"></div>
+      <section class="startup-panel">
+        <h1>Authenticity Check</h1>
+        <form id="home-search-form" class="startup-search">
+          <input id="home-search-input" type="search" inputmode="search" autocomplete="off" placeholder="Box ID" aria-label="Search box ID" />
+          <button class="startup-action-button" type="submit">Search</button>
+          <button id="qr-scan-button" class="startup-qr-button" type="button" aria-label="Scan QR code">QR</button>
+        </form>
+        <button id="sound-toggle" class="sound-toggle" type="button">Sound</button>
+      </section>
+    </main>
+  `;
+
+  bindHomeEvents();
+}
+
+function bindHomeEvents() {
+  const form = document.querySelector("#home-search-form");
+  const input = document.querySelector("#home-search-input");
+  const qrButton = document.querySelector("#qr-scan-button");
+  const soundButton = document.querySelector("#sound-toggle");
+  const startupVideo = document.querySelector("#startup-video");
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    navigateFromCode(input?.value || "");
+  });
+
+  qrButton?.addEventListener("click", () => {
+    openQrScanner();
+  });
+
+  soundButton?.addEventListener("click", async () => {
+    if (!startupVideo) {
+      return;
+    }
+
+    startupVideo.muted = !startupVideo.muted;
+    soundButton.classList.toggle("is-on", !startupVideo.muted);
+    soundButton.textContent = startupVideo.muted ? "Sound" : "Sound On";
+    await startupVideo.play().catch(() => {});
+  });
+
+  startupVideo?.play().catch(() => {});
+}
+
+function navigateFromCode(value) {
+  const destination = getDestinationFromCode(value);
+  if (!destination) {
+    return;
+  }
+
+  window.location.href = destination;
+}
+
+function getDestinationFromCode(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const url = new URL(raw);
+    return `${url.pathname || "/"}${url.search || ""}`;
+  } catch {
+    const cleaned = raw.replace(/^\/+/, "").split(/\s+/)[0];
+    if (!cleaned) {
+      return "";
+    }
+
+    return `/${encodeURIComponent(cleaned)}`;
+  }
+}
+
+async function openQrScanner() {
+  closeQrScanner();
+  const overlay = document.createElement("div");
+  overlay.className = "qr-modal";
+  overlay.innerHTML = `
+    <div class="qr-backdrop" data-close-qr></div>
+    <section class="qr-dialog" role="dialog" aria-modal="true" aria-label="QR scanner">
+      <button class="qr-close" type="button" data-close-qr aria-label="Close QR scanner">Close</button>
+      <video id="qr-camera" class="qr-camera" autoplay muted playsinline></video>
+      <p id="qr-status" class="qr-status">Opening camera...</p>
+      <form id="qr-fallback-form" class="qr-fallback">
+        <input id="qr-fallback-input" type="search" placeholder="Box ID" aria-label="Box ID" />
+        <button type="submit">Open</button>
+      </form>
+    </section>
+  `;
+
+  document.body.append(overlay);
+  overlay.querySelectorAll("[data-close-qr]").forEach((element) => {
+    element.addEventListener("click", closeQrScanner);
+  });
+
+  overlay.querySelector("#qr-fallback-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    navigateFromCode(overlay.querySelector("#qr-fallback-input")?.value || "");
+  });
+
+  const status = overlay.querySelector("#qr-status");
+  const video = overlay.querySelector("#qr-camera");
+
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+      },
+      audio: false,
+    });
+    video.srcObject = qrStream;
+    await video.play();
+  } catch {
+    status.textContent = "Camera is unavailable. Enter the box ID below.";
+    return;
+  }
+
+  if (!("BarcodeDetector" in window)) {
+    status.textContent = "Camera is open. This browser cannot read QR codes here, so enter the box ID below.";
+    return;
+  }
+
+  let detector;
+  try {
+    detector = new BarcodeDetector({ formats: ["qr_code"] });
+  } catch {
+    status.textContent = "Camera is open. QR decoding is unavailable here, so enter the box ID below.";
+    return;
+  }
+
+  status.textContent = "Point camera at QR code.";
+
+  const scan = async () => {
+    try {
+      const codes = await detector.detect(video);
+      const rawValue = codes[0]?.rawValue;
+      if (rawValue) {
+        closeQrScanner();
+        navigateFromCode(rawValue);
+        return;
+      }
+    } catch {
+      status.textContent = "Still looking for QR code...";
+    }
+
+    qrScanFrame = window.requestAnimationFrame(scan);
+  };
+
+  scan();
+}
+
+function closeQrScanner() {
+  if (qrScanFrame) {
+    window.cancelAnimationFrame(qrScanFrame);
+    qrScanFrame = null;
+  }
+
+  if (qrStream) {
+    qrStream.getTracks().forEach((track) => track.stop());
+    qrStream = null;
+  }
+
+  document.querySelector(".qr-modal")?.remove();
 }
 
 async function renderCatalogPage(catalog) {
@@ -272,6 +449,10 @@ function getBoxIdFromPath() {
   }
 
   return parts[0];
+}
+
+function isRootPath() {
+  return decodeURIComponent(window.location.pathname).split("/").filter(Boolean).length === 0;
 }
 
 function getCatalogFromPath() {
