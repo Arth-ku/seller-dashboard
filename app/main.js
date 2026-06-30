@@ -8,7 +8,7 @@ import {
   rowsFromCsv,
   serializeRowsToCsv,
 } from "./csv.js";
-import { loadAppState, saveAppState, saveMeta, saveProductDetails, saveRows, uploadImages } from "./store.js";
+import { loadAppState, loadHealth, saveAppState, saveMeta, saveProductDetails, saveRows, uploadImages } from "./store.js";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -17,6 +17,8 @@ const DASHBOARD_COLUMNS = COLUMN_DEFS.filter(({ key }) =>
   ["boxId", "archived", "itemName"].includes(key),
 );
 const MAX_IMAGES_PER_PRODUCT = 30;
+const HEALTH_REFRESH_MS = 15000;
+const IMPORT_PASSWORD = "wSS2008!";
 
 const state = {
   rows: [],
@@ -27,6 +29,7 @@ const state = {
   boxSort: "desc",
   saveMessage: "",
 };
+let healthRefreshTimer = null;
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -77,6 +80,12 @@ async function init() {
 function render() {
   const route = getCurrentRoute();
   app.innerHTML = "";
+  clearHealthRefresh();
+
+  if (route.page === "health") {
+    renderHealthPage();
+    return;
+  }
 
   if (route.subpage === "authenticity" && route.boxId) {
     renderAuthenticityPage(route.boxId);
@@ -89,6 +98,141 @@ function render() {
   }
 
   renderDashboard();
+}
+
+function renderHealthPage() {
+  const main = document.createElement("main");
+  main.className = "shell health-shell";
+  main.innerHTML = `
+    <section class="panel health-panel">
+      <div class="detail-header">
+        <div>
+          <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
+          <p class="eyebrow">System Health</p>
+          <h1>Site health</h1>
+          <p class="detail-subtitle">Auto-refreshes every 15 seconds. Heavy disk and database checks are cached on the server.</p>
+        </div>
+        <div class="health-summary" id="health-summary">
+          <span class="health-badge is-warn">Loading</span>
+        </div>
+      </div>
+      <div class="health-actions">
+        <button id="health-refresh-button" class="button secondary" type="button">Refresh now</button>
+        <span id="health-updated" class="muted-text">Waiting for first check...</span>
+      </div>
+      <div id="health-grid" class="health-grid">
+        <div class="health-card is-warn">
+          <span class="health-status">Loading</span>
+          <h2>Checking site health...</h2>
+          <p>Please wait.</p>
+        </div>
+      </div>
+    </section>
+  `;
+  app.append(main);
+
+  document.querySelector("#health-refresh-button")?.addEventListener("click", () => {
+    refreshHealth({ immediate: true });
+  });
+  refreshHealth({ immediate: true });
+}
+
+async function refreshHealth({ immediate = false } = {}) {
+  clearHealthRefresh();
+  const button = document.querySelector("#health-refresh-button");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Refreshing...";
+  }
+
+  try {
+    const payload = await loadHealth();
+    renderHealthPayload(payload);
+  } catch (error) {
+    renderHealthError(error);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Refresh now";
+    }
+    healthRefreshTimer = window.setTimeout(refreshHealth, HEALTH_REFRESH_MS);
+  }
+
+  if (!immediate) {
+    return;
+  }
+}
+
+function renderHealthPayload(payload) {
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const status = payload.status || "warn";
+  const counts = payload.counts || {};
+  const summary = document.querySelector("#health-summary");
+  const updated = document.querySelector("#health-updated");
+  const grid = document.querySelector("#health-grid");
+
+  if (summary) {
+    summary.innerHTML = `
+      <span class="health-badge is-${escapeAttribute(status)}">${escapeHtml(status.toUpperCase())}</span>
+      <span>${escapeHtml(String(counts.ok || 0))} OK</span>
+      <span>${escapeHtml(String(counts.warn || 0))} Warn</span>
+      <span>${escapeHtml(String(counts.bad || 0))} Bad</span>
+    `;
+  }
+
+  if (updated) {
+    const collectedAt = payload.collectedAt ? new Date(payload.collectedAt * 1000) : new Date();
+    updated.textContent = `Last updated ${collectedAt.toLocaleString()} · next refresh in 15 seconds`;
+  }
+
+  if (!grid) {
+    return;
+  }
+
+  grid.innerHTML = items
+    .map(
+      (item) => `
+        <article class="health-card is-${escapeAttribute(item.state || "warn")}">
+          <span class="health-status">${escapeHtml(String(item.state || "warn").toUpperCase())}</span>
+          <h2>${escapeHtml(item.label || "Health check")}</h2>
+          <strong>${escapeHtml(item.value || "")}</strong>
+          ${item.detail ? `<p>${escapeHtml(item.detail)}</p>` : ""}
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderHealthError(error) {
+  const summary = document.querySelector("#health-summary");
+  const updated = document.querySelector("#health-updated");
+  const grid = document.querySelector("#health-grid");
+
+  if (summary) {
+    summary.innerHTML = `<span class="health-badge is-bad">ERROR</span>`;
+  }
+
+  if (updated) {
+    updated.textContent = `Health check failed at ${new Date().toLocaleString()}`;
+  }
+
+  if (grid) {
+    grid.innerHTML = `
+      <article class="health-card is-bad">
+        <span class="health-status">BAD</span>
+        <h2>Health endpoint failed</h2>
+        <strong>Could not load /api/health</strong>
+        <p>${escapeHtml(error?.message || String(error))}</p>
+      </article>
+    `;
+  }
+}
+
+function clearHealthRefresh() {
+  if (healthRefreshTimer) {
+    window.clearTimeout(healthRefreshTimer);
+    healthRefreshTimer = null;
+  }
 }
 
 function renderDashboard() {
@@ -167,6 +311,7 @@ function renderDashboard() {
           </label>
           <button id="add-row-button" class="button secondary" type="button">Add Row</button>
           <button id="export-button" class="button ghost" type="button">Export CSV</button>
+          <a class="button ghost" data-route href="${appPath("/health")}">Health</a>
         </div>
         <div class="toolbar-filters">
           <label class="search-field">
@@ -513,20 +658,32 @@ function bindDashboardEvents() {
       return;
     }
 
-    const text = await file.text();
-    const importedRows = rowsFromCsv(text);
-    const mergedImport = mergeImportedRows(importedRows);
-    state.rows = mergedImport.rows;
-    state.productDetails = mergedImport.productDetails;
-    state.meta = {
-      ...state.meta,
-      lastImportAt: new Date().toISOString(),
-      lastImportName: file.name,
-    };
+    const password = window.prompt("Enter import password");
+    if (password !== IMPORT_PASSWORD) {
+      event.target.value = "";
+      setSaveMessage("CSV import canceled. Password was not accepted.");
+      render();
+      return;
+    }
 
-    await saveAppState({ rows: state.rows, productDetails: state.productDetails, meta: state.meta });
-    setSaveMessage(`Imported ${importedRows.length} row(s) from ${file.name}.`);
-    render();
+    try {
+      const text = await file.text();
+      const importedRows = rowsFromCsv(text);
+      const mergedImport = mergeImportedRows(importedRows);
+      state.rows = mergedImport.rows;
+      state.productDetails = mergedImport.productDetails;
+      state.meta = {
+        ...state.meta,
+        lastImportAt: new Date().toISOString(),
+        lastImportName: file.name,
+      };
+
+      await saveAppState({ rows: state.rows, productDetails: state.productDetails, meta: state.meta });
+      setSaveMessage(`Imported ${importedRows.length} row(s) from ${file.name}.`);
+      render();
+    } finally {
+      event.target.value = "";
+    }
   });
 
   addRowButton?.addEventListener("click", async () => {
@@ -1032,7 +1189,16 @@ function getCurrentRoute() {
   const path = stripBasePath(decodeURIComponent(window.location.pathname));
   const parts = path.split("/").filter(Boolean);
 
+  if (parts[0] === "health") {
+    return {
+      page: "health",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
   return {
+    page: "",
     boxId: parts[0] || "",
     subpage: parts[1] || "",
   };

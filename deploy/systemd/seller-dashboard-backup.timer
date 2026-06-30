@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Seller Dashboard SQLite backups regularly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Persistent=true
+Unit=seller-dashboard-backup.service
+
+[Install]
+WantedBy=timers.target

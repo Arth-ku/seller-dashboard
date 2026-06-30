@@ -5,6 +5,8 @@ import mimetypes
 import os
 import shutil
 import sqlite3
+import subprocess
+import time
 import uuid
 from email.parser import BytesParser
 from email.policy import default
@@ -12,6 +14,7 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent
@@ -23,6 +26,8 @@ PORT = int(os.environ.get("SELLER_DASHBOARD_PORT", "8000"))
 BASE_PATH = os.environ.get("SELLER_DASHBOARD_BASE_PATH", "").strip()
 PUBLIC_ALLOWED_ORIGIN = os.environ.get("SELLER_PUBLIC_ALLOWED_ORIGIN", "*").strip() or "*"
 JSON_HEADERS = {"Content-Type": "application/json; charset=utf-8"}
+HEALTH_LIGHT_CACHE_SECONDS = 10
+HEALTH_DEEP_CACHE_SECONDS = 300
 APPAREL_MIN_BOX_ID = 1000
 APPAREL_MAX_BOX_ID = 1100
 APPAREL_BRANDS = (
@@ -83,6 +88,10 @@ CATALOGS = {
         "clients": HVAC_BRANDS,
     },
 }
+HEALTH_CACHE = {
+    "light": {"expires_at": 0.0, "value": None},
+    "deep": {"expires_at": 0.0, "value": None},
+}
 
 
 def normalize_base_path(value: str) -> str:
@@ -135,6 +144,257 @@ def load_state() -> dict:
         "rows": rows.get("rows", []),
         "productDetails": rows.get("productDetails", {}),
         "meta": rows.get("meta", {}),
+    }
+
+
+def bytes_human(value: int) -> str:
+    amount = float(value)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if amount < 1024 or unit == "TB":
+            return f"{amount:.1f} {unit}" if unit != "B" else f"{int(amount)} B"
+        amount /= 1024
+    return f"{value} B"
+
+
+def run_command(command: list[str], timeout: int = 3) -> tuple[int, str]:
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return 127, str(exc)
+    return result.returncode, result.stdout.strip()
+
+
+def directory_size(path: Path) -> int:
+    total = 0
+    if not path.exists():
+        return 0
+    for root, _, files in os.walk(path):
+        for filename in files:
+            try:
+                total += (Path(root) / filename).stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def status_item(state: str, label: str, value: str, detail: str = "") -> dict:
+    return {"state": state, "label": label, "value": value, "detail": detail}
+
+
+def disk_health(path: Path, label: str) -> dict:
+    usage = shutil.disk_usage(path)
+    free_percent = usage.free / usage.total * 100
+    if free_percent < 10:
+        state = "bad"
+    elif free_percent < 20:
+        state = "warn"
+    else:
+        state = "ok"
+    return status_item(
+        state,
+        label,
+        f"{bytes_human(usage.free)} free",
+        f"{bytes_human(usage.total)} total, {free_percent:.0f}% free",
+    )
+
+
+def service_health(name: str) -> dict:
+    active_code, active = run_command(["systemctl", "is-active", name])
+    enabled_code, enabled = run_command(["systemctl", "is-enabled", name])
+    active_text = active or "unknown"
+    enabled_text = enabled or "unknown"
+    if active_code == 0 and enabled_code == 0:
+        state = "ok"
+    elif active_text == "active":
+        state = "warn"
+    else:
+        state = "bad"
+    return status_item(state, name, active_text, enabled_text)
+
+
+def endpoint_health(label: str, url: str, headers: dict[str, str] | None = None) -> dict:
+    request = Request(url, headers={"Accept": "application/json,text/html,*/*", **(headers or {})})
+    started_at = time.monotonic()
+    try:
+        with urlopen(request, timeout=4) as response:
+            response.read(256)
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            status = response.getcode()
+    except Exception as exc:
+        return status_item("bad", label, "Unavailable", str(exc))
+
+    state = "ok" if 200 <= status < 300 else "warn"
+    return status_item(state, label, f"HTTP {status}", f"{elapsed_ms} ms")
+
+
+def cpu_temp_health() -> dict:
+    try:
+        celsius = int(Path("/sys/class/thermal/thermal_zone0/temp").read_text().strip()) / 1000
+    except Exception as exc:
+        return status_item("warn", "CPU temperature", "Unavailable", str(exc))
+    if celsius >= 80:
+        state = "bad"
+    elif celsius >= 70:
+        state = "warn"
+    else:
+        state = "ok"
+    return status_item(state, "CPU temperature", f"{celsius:.1f} C")
+
+
+def gpu_health() -> dict:
+    temp_code, temp = run_command(["vcgencmd", "measure_temp"])
+    throttle_code, throttle = run_command(["vcgencmd", "get_throttled"])
+    parts = []
+    state = "ok"
+
+    if temp_code == 0 and temp:
+        parts.append(temp.replace("temp=", "Temp "))
+    else:
+        parts.append("Temp unavailable")
+        state = "warn"
+
+    if throttle_code == 0 and throttle:
+        parts.append(throttle)
+        if not throttle.endswith("0x0"):
+            state = "warn"
+    else:
+        parts.append("Throttle unavailable")
+        state = "warn"
+
+    return status_item(state, "GPU / throttle", parts[0], "; ".join(parts[1:]))
+
+
+def memory_health() -> dict:
+    meminfo = {}
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            key, value = line.split(":", 1)
+            meminfo[key] = int(value.strip().split()[0]) * 1024
+    except Exception as exc:
+        return status_item("warn", "Memory", "Unavailable", str(exc))
+
+    total = meminfo.get("MemTotal", 0)
+    available = meminfo.get("MemAvailable", 0)
+    free_percent = available / total * 100 if total else 0
+    state = "bad" if free_percent < 8 else "warn" if free_percent < 15 else "ok"
+    return status_item(state, "Memory", bytes_human(available), f"{bytes_human(total)} total")
+
+
+def backup_health() -> dict:
+    backup_dir = DATA_DIR / "backups"
+    backups = sorted(backup_dir.glob("seller_dashboard-*.db"), key=lambda item: item.stat().st_mtime)
+    if not backups:
+        return status_item("bad", "Database backups", "None found", str(backup_dir))
+    latest = backups[-1]
+    age_minutes = max(0, int((time.time() - latest.stat().st_mtime) // 60))
+    state = "ok" if age_minutes <= 90 else "warn"
+    return status_item(
+        state,
+        "Database backups",
+        f"{age_minutes} min old",
+        f"{bytes_human(latest.stat().st_size)}, {len(backups)} retained",
+    )
+
+
+def database_health() -> dict:
+    if not DB_PATH.exists():
+        return status_item("bad", "Database", "Missing", str(DB_PATH))
+    try:
+        with sqlite3.connect(DB_PATH) as connection:
+            integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+            row_count = connection.execute("SELECT length(value) FROM app_state WHERE key = 'rows'").fetchone()
+    except sqlite3.Error as exc:
+        return status_item("bad", "Database", "Error", str(exc))
+    state = "ok" if integrity == "ok" else "bad"
+    return status_item(state, "Database", f"Integrity {integrity}", f"rows JSON bytes: {row_count[0] if row_count else 0}")
+
+
+def get_cached_health(key: str, ttl_seconds: int, collector) -> dict:
+    now = time.monotonic()
+    cached = HEALTH_CACHE[key]
+    if cached["value"] is not None and cached["expires_at"] > now:
+        return cached["value"]
+    value = collector()
+    cached["value"] = value
+    cached["expires_at"] = now + ttl_seconds
+    return value
+
+
+def collect_light_health() -> dict:
+    return {
+        "items": [
+            disk_health(ROOT, "Site storage"),
+            status_item(
+                "ok" if UPLOADS_DIR.exists() else "bad",
+                "Uploads folder",
+                "Present" if UPLOADS_DIR.exists() else "Missing",
+                str(UPLOADS_DIR),
+            ),
+            status_item(
+                "ok" if Path("/var/www/authenticitycheck").exists() else "bad",
+                "Public static root",
+                "Present" if Path("/var/www/authenticitycheck").exists() else "Missing",
+                "/var/www/authenticitycheck",
+            ),
+            cpu_temp_health(),
+            gpu_health(),
+            memory_health(),
+            service_health("seller-dashboard"),
+            service_health("nginx"),
+            service_health("cloudflared"),
+            service_health("seller-dashboard-backup.timer"),
+            endpoint_health("Private API", "http://127.0.0.1:8000/sell/api/ping"),
+            endpoint_health("Public homepage", "http://127.0.0.1/", {"Host": "authenticitycheck.net"}),
+            endpoint_health(
+                "Public product API",
+                "http://127.0.0.1/sell/api/public/products/620",
+                {"Host": "authenticitycheck.net"},
+            ),
+        ],
+        "collectedAt": int(time.time()),
+    }
+
+
+def collect_deep_health() -> dict:
+    return {
+        "items": [
+            database_health(),
+            backup_health(),
+            status_item(
+                "ok" if UPLOADS_DIR.exists() else "bad",
+                "Uploads size",
+                bytes_human(directory_size(UPLOADS_DIR)),
+                "Scanned every 5 minutes",
+            ),
+        ],
+        "collectedAt": int(time.time()),
+    }
+
+
+def collect_health_payload() -> dict:
+    light = get_cached_health("light", HEALTH_LIGHT_CACHE_SECONDS, collect_light_health)
+    deep = get_cached_health("deep", HEALTH_DEEP_CACHE_SECONDS, collect_deep_health)
+    items = light["items"] + deep["items"]
+    counts = {"ok": 0, "warn": 0, "bad": 0}
+    for item in items:
+        counts[item["state"]] = counts.get(item["state"], 0) + 1
+    return {
+        "status": "bad" if counts["bad"] else "warn" if counts["warn"] else "ok",
+        "counts": counts,
+        "items": items,
+        "refreshSeconds": 15,
+        "cache": {
+            "lightSeconds": HEALTH_LIGHT_CACHE_SECONDS,
+            "deepSeconds": HEALTH_DEEP_CACHE_SECONDS,
+        },
+        "collectedAt": max(light["collectedAt"], deep["collectedAt"]),
     }
 
 
@@ -303,6 +563,12 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
 
         if normalized_path == "/api/state":
             return self.respond_json(load_state())
+
+        if normalized_path == "/api/ping":
+            return self.respond_json({"ok": True})
+
+        if normalized_path == "/api/health":
+            return self.respond_json(collect_health_payload())
 
         if normalized_path == "/api/public/apparel":
             return self.handle_public_catalog_request("apparel")

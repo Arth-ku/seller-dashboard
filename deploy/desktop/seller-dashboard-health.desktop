@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Seller Dashboard Health
+Comment=Show site, storage, service, and Raspberry Pi health
+Exec=/usr/bin/python3 /home/lwarm/apps/seller-dashboard/scripts/site-health-dashboard.py
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;

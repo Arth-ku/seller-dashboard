@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Seller Dashboard SQLite database
+After=local-fs.target
+RequiresMountsFor=/home/lwarm/apps/seller-dashboard/data
+
+[Service]
+Type=oneshot
+User=lwarm
+WorkingDirectory=/home/lwarm/apps/seller-dashboard
+ExecStart=/home/lwarm/apps/seller-dashboard/scripts/backup-sqlite.sh

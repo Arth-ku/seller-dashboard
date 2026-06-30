@@ -31,6 +31,20 @@ export async function loadAppState() {
   return { ...cachedState };
 }
 
+export async function loadHealth() {
+  const response = await fetch(toApiUrl("/api/health"), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load site health from the server.");
+  }
+
+  return response.json();
+}
+
 export async function saveRows(rows) {
   await saveAppState({ rows });
 }
