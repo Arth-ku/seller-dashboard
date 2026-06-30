@@ -53,6 +53,57 @@ SELLER_DASHBOARD_PORT=8080 python3 server.py
 - For the exact address `http://bluezonee/sell/` to work without `:8000`, you will usually want a reverse proxy on the Pi listening on port 80 and forwarding `/sell/` to this app, or another service already handling that.
 - The hostname `bluezonee` must also resolve on your local network. That usually means router/DNS setup, `hosts` entries, or using `bluezonee.local` with mDNS/Avahi.
 
+## Health journal for bots
+
+The app exposes a manual health page and read-only health JSON for bots and remote checks.
+
+- Manual health page: `https://authenticitycheck.net/sell/health`
+- Public bot summary JSON: `https://authenticitycheck.net/sell/api/health/journal/today`
+- Latest full health snapshot: `https://authenticitycheck.net/sell/api/health`
+- Latest journal entry: `https://authenticitycheck.net/sell/api/health/journal/latest`
+- Today's summary for a bot: `https://authenticitycheck.net/sell/api/health/journal/today`
+- Specific date: `https://authenticitycheck.net/sell/api/health/journal?date=2026-06-30`
+
+The daily summary returns fields like:
+
+```json
+{
+  "date": "2026-06-30",
+  "status": "ok",
+  "message": "all ok",
+  "snapshotCount": 96,
+  "latestCounts": {"ok": 15, "warn": 0, "bad": 0},
+  "problems": []
+}
+```
+
+If something is wrong, `message` changes to `needs attention` and `problems` lists labels such as service failures, HTTP errors, high temperature, low disk, or stale backups with counts for the day.
+
+From Windows PowerShell:
+
+```powershell
+Invoke-RestMethod "https://authenticitycheck.net/sell/api/health/journal/today"
+```
+
+OpenClaw can use the same JSON URL and read:
+
+- `message` for `all ok` or `needs attention`
+- `latestCounts.bad` for current error quantity
+- `latestCounts.warn` for current weird/warning quantity
+- `problems` for what was weird during the day
+
+To record automatically every 15 minutes on the Pi:
+
+```bash
+sudo install -m 755 scripts/health-journal.py /home/lwarm/apps/seller-dashboard/scripts/health-journal.py
+sudo install -m 644 deploy/systemd/seller-dashboard-health-journal.service /etc/systemd/system/
+sudo install -m 644 deploy/systemd/seller-dashboard-health-journal.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now seller-dashboard-health-journal.timer
+```
+
+Journal files are stored as JSON lines in `data/health-journal/YYYY-MM-DD.jsonl`.
+
 ## Cloudflare split setup
 
 You can keep the dashboard on the Raspberry Pi and publish only the public authenticity pages through Cloudflare.

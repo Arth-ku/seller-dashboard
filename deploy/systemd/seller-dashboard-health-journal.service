@@ -1,0 +1,11 @@
+[Unit]
+Description=Record Seller Dashboard health journal snapshot
+After=network-online.target seller-dashboard.service
+Wants=network-online.target
+RequiresMountsFor=/home/lwarm/apps/seller-dashboard/data
+
+[Service]
+Type=oneshot
+User=lwarm
+WorkingDirectory=/home/lwarm/apps/seller-dashboard
+ExecStart=/home/lwarm/apps/seller-dashboard/scripts/health-journal.py --source timer

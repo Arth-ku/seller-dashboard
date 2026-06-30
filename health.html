@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seller Dashboard Health</title>
+    <script>
+      window.__APP_CONFIG__ = { basePath: "__APP_PREFIX__" };
+    </script>
+    <link rel="stylesheet" href="__APP_PREFIX__/app/styles.css?v=20260629i" />
+    <link rel="stylesheet" href="__APP_PREFIX__/app/health.css?v=20260630a" />
+  </head>
+  <body>
+    <main class="health-shell">
+      <header class="health-header">
+        <div>
+          <p class="eyebrow">Authenticity Check</p>
+          <h1>Site Health</h1>
+          <p id="health-summary-text">Loading latest status...</p>
+        </div>
+        <div class="health-actions">
+          <a class="button ghost" href="__APP_PREFIX__/">Dashboard</a>
+          <button class="button primary" id="refresh-health" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="health-grid" aria-label="Health totals">
+        <article class="health-metric health-status-card">
+          <span>Status</span>
+          <strong id="health-status">Loading</strong>
+          <small id="health-last-recorded">Waiting for journal</small>
+        </article>
+        <article class="health-metric">
+          <span>Errors</span>
+          <strong id="health-bad">0</strong>
+          <small>Current bad checks</small>
+        </article>
+        <article class="health-metric">
+          <span>Warnings</span>
+          <strong id="health-warn">0</strong>
+          <small>Current weird checks</small>
+        </article>
+        <article class="health-metric">
+          <span>Snapshots Today</span>
+          <strong id="health-snapshots">0</strong>
+          <small id="health-date">Today</small>
+        </article>
+      </section>
+
+      <section class="health-section">
+        <div class="health-section-heading">
+          <div>
+            <h2>Today</h2>
+            <p>Summary that OpenClaw reads for daily status.</p>
+          </div>
+          <a class="button secondary" href="__APP_PREFIX__/api/health/journal/today">JSON</a>
+        </div>
+        <div id="health-problems" class="health-problems"></div>
+      </section>
+
+      <section class="health-section">
+        <div class="health-section-heading">
+          <div>
+            <h2>Live Checks</h2>
+            <p>Current services, endpoints, storage, database, backup, and device health.</p>
+          </div>
+          <a class="button secondary" href="__APP_PREFIX__/api/health">Full JSON</a>
+        </div>
+        <div id="health-items" class="health-items"></div>
+      </section>
+    </main>
+    <script type="module" src="__APP_PREFIX__/app/health.js?v=20260630a"></script>
+  </body>
+</html>

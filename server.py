@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import datetime as dt
 import shutil
 import sqlite3
 import subprocess
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 UPLOADS_DIR = ROOT / "uploads"
 DB_PATH = DATA_DIR / "seller_dashboard.db"
+HEALTH_JOURNAL_DIR = DATA_DIR / "health-journal"
 HOST = os.environ.get("SELLER_DASHBOARD_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SELLER_DASHBOARD_PORT", "8000"))
 BASE_PATH = os.environ.get("SELLER_DASHBOARD_BASE_PATH", "").strip()
@@ -398,6 +400,130 @@ def collect_health_payload() -> dict:
     }
 
 
+def local_now() -> dt.datetime:
+    return dt.datetime.now().astimezone()
+
+
+def journal_date_from_timestamp(timestamp: int | float | None = None) -> str:
+    moment = dt.datetime.fromtimestamp(timestamp, tz=local_now().tzinfo) if timestamp else local_now()
+    return moment.date().isoformat()
+
+
+def health_journal_path(date_text: str) -> Path:
+    return HEALTH_JOURNAL_DIR / f"{date_text}.jsonl"
+
+
+def health_journal_entry(payload: dict, source: str = "api") -> dict:
+    recorded_at = local_now()
+    problem_items = [
+        {
+            "state": item.get("state", "warn"),
+            "label": item.get("label", "Unknown"),
+            "value": item.get("value", ""),
+            "detail": item.get("detail", ""),
+        }
+        for item in payload.get("items", [])
+        if item.get("state") != "ok"
+    ]
+    return {
+        "recordedAt": recorded_at.isoformat(timespec="seconds"),
+        "date": recorded_at.date().isoformat(),
+        "source": source,
+        "status": payload.get("status", "warn"),
+        "counts": payload.get("counts", {}),
+        "collectedAt": payload.get("collectedAt"),
+        "problemItems": problem_items,
+    }
+
+
+def append_health_journal(payload: dict, source: str = "api") -> dict:
+    entry = health_journal_entry(payload, source)
+    HEALTH_JOURNAL_DIR.mkdir(parents=True, exist_ok=True)
+    with health_journal_path(entry["date"]).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    return entry
+
+
+def read_health_journal(date_text: str) -> list[dict]:
+    path = health_journal_path(date_text)
+    entries = []
+    if not path.exists():
+        return entries
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return entries
+
+
+def summarize_health_journal(entries: list[dict], date_text: str) -> dict:
+    snapshot_counts = {"ok": 0, "warn": 0, "bad": 0}
+    max_item_counts = {"ok": 0, "warn": 0, "bad": 0}
+    problem_summary: dict[str, dict] = {}
+
+    for entry in entries:
+        status = entry.get("status", "warn")
+        snapshot_counts[status] = snapshot_counts.get(status, 0) + 1
+        counts = entry.get("counts", {})
+        for state in max_item_counts:
+            max_item_counts[state] = max(max_item_counts[state], int(counts.get(state, 0) or 0))
+
+        for item in entry.get("problemItems", []):
+            label = item.get("label", "Unknown")
+            summary = problem_summary.setdefault(
+                label,
+                {
+                    "label": label,
+                    "warnSnapshots": 0,
+                    "badSnapshots": 0,
+                    "latestState": "warn",
+                    "latestValue": "",
+                    "latestDetail": "",
+                    "latestAt": "",
+                },
+            )
+            state = item.get("state", "warn")
+            if state == "bad":
+                summary["badSnapshots"] += 1
+            else:
+                summary["warnSnapshots"] += 1
+            summary["latestState"] = state
+            summary["latestValue"] = item.get("value", "")
+            summary["latestDetail"] = item.get("detail", "")
+            summary["latestAt"] = entry.get("recordedAt", "")
+
+    latest = entries[-1] if entries else None
+    problems = sorted(
+        problem_summary.values(),
+        key=lambda item: (item["badSnapshots"], item["warnSnapshots"], item["label"]),
+        reverse=True,
+    )
+    return {
+        "date": date_text,
+        "ok": bool(entries) and snapshot_counts.get("warn", 0) == 0 and snapshot_counts.get("bad", 0) == 0,
+        "status": latest.get("status", "unknown") if latest else "unknown",
+        "message": "all ok" if entries and not problems else "needs attention" if problems else "no journal entries yet",
+        "snapshotCount": len(entries),
+        "firstRecordedAt": entries[0].get("recordedAt") if entries else None,
+        "lastRecordedAt": latest.get("recordedAt") if latest else None,
+        "snapshotCounts": snapshot_counts,
+        "latestCounts": latest.get("counts", {}) if latest else {"ok": 0, "warn": 0, "bad": 0},
+        "maxItemCounts": max_item_counts,
+        "problems": problems,
+    }
+
+
+def collect_and_journal_health(source: str = "api") -> tuple[dict, dict]:
+    payload = collect_health_payload()
+    entry = append_health_journal(payload, source)
+    return payload, entry
+
+
 def save_state(state: dict) -> None:
     ensure_app_storage()
     previous_state = load_state()
@@ -568,7 +694,21 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             return self.respond_json({"ok": True})
 
         if normalized_path == "/api/health":
-            return self.respond_json(collect_health_payload())
+            payload, entry = collect_and_journal_health("api")
+            payload["journalEntry"] = {
+                "recordedAt": entry["recordedAt"],
+                "date": entry["date"],
+            }
+            return self.respond_json(payload)
+
+        if normalized_path == "/api/health/journal/latest":
+            return self.handle_health_journal_latest()
+
+        if normalized_path in {"/api/health/journal", "/api/health/journal/today"}:
+            return self.handle_health_journal_request()
+
+        if normalized_path == "/health":
+            return self.serve_health_page()
 
         if normalized_path == "/api/public/apparel":
             return self.handle_public_catalog_request("apparel")
@@ -601,6 +741,8 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 return
             self.send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
+        if normalized_path == "/health":
+            return self.serve_health_page(head_only=True)
         if self._should_serve_index():
             return self.serve_index(head_only=True)
         return super().do_HEAD()
@@ -682,6 +824,34 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             )
 
         return self.respond_json({"images": saved_images})
+
+    def handle_health_journal_request(self) -> None:
+        query = parse_qs(urlparse(self.path).query)
+        date_text = query.get("date", [journal_date_from_timestamp()])[0]
+        if not self.is_valid_journal_date(date_text):
+            return self.respond_error(HTTPStatus.BAD_REQUEST, "Expected date as YYYY-MM-DD")
+
+        entries = read_health_journal(date_text)
+        if not entries and date_text == journal_date_from_timestamp():
+            _, entry = collect_and_journal_health("api-empty-today")
+            entries = [entry]
+
+        return self.respond_json(summarize_health_journal(entries, date_text))
+
+    def handle_health_journal_latest(self) -> None:
+        today = journal_date_from_timestamp()
+        entries = read_health_journal(today)
+        if not entries:
+            _, entry = collect_and_journal_health("api-latest")
+            entries = [entry]
+        return self.respond_json(entries[-1])
+
+    def is_valid_journal_date(self, date_text: str) -> bool:
+        try:
+            dt.date.fromisoformat(date_text)
+        except ValueError:
+            return False
+        return len(date_text) == 10
 
     def parse_uploaded_files(self, content_type: str, body: bytes, field_name: str) -> list[dict]:
         message = BytesParser(policy=default).parsebytes(
@@ -856,6 +1026,16 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
 
     def serve_index(self, head_only: bool = False) -> None:
         content = (ROOT / "index.html").read_text(encoding="utf-8")
+        body = content.replace("__APP_PREFIX__", APP_PREFIX).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if not head_only:
+            self.wfile.write(body)
+
+    def serve_health_page(self, head_only: bool = False) -> None:
+        content = (ROOT / "health.html").read_text(encoding="utf-8")
         body = content.replace("__APP_PREFIX__", APP_PREFIX).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")

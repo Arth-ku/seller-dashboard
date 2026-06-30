@@ -1,0 +1,11 @@
+[Unit]
+Description=Record Seller Dashboard health journal regularly
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+Persistent=true
+Unit=seller-dashboard-health-journal.service
+
+[Install]
+WantedBy=timers.target
