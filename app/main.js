@@ -31,6 +31,15 @@ const MAX_IMAGES_PER_PRODUCT = 30;
 const HEALTH_REFRESH_MS = 15000;
 const IMPORT_PASSWORD = "wSS2008!";
 
+// Admin catalog views. Ranges mirror CATALOGS in server.py. These are admin-only pages
+// inside the dashboard (/sell/hvac, /sell/apparel) that show EVERY item in the range,
+// including hidden ones. The public catalog pages on authenticitycheck.net are separate
+// and still exclude hidden items.
+const CATALOGS = {
+  apparel: { label: "Apparel", from: 1000, to: 1100 },
+  hvac: { label: "HVAC", from: 700, to: 800 },
+};
+
 const state = {
   rows: [],
   productDetails: {},
@@ -41,6 +50,7 @@ const state = {
   saveMessage: "",
   session: { authenticated: false, authRequired: false },
   loginError: "",
+  catalogSearch: "",
 };
 let healthRefreshTimer = null;
 
@@ -166,6 +176,11 @@ function render() {
 
   if (route.page === "health") {
     renderHealthPage();
+    return;
+  }
+
+  if (route.page === "catalog") {
+    renderCatalogPage(route.catalog);
     return;
   }
 
@@ -317,6 +332,139 @@ function clearHealthRefresh() {
   }
 }
 
+function renderCatalogPage(catalogName) {
+  const catalog = CATALOGS[catalogName];
+  if (!catalog) {
+    navigate("/");
+    return;
+  }
+
+  const term = state.catalogSearch.trim().toLowerCase();
+  const items = (Array.isArray(state.rows) ? state.rows : [])
+    .filter((row) => {
+      const number = Number(String(row?.boxId ?? "").trim());
+      return Number.isInteger(number) && number >= catalog.from && number <= catalog.to;
+    })
+    .filter((row) => {
+      if (!term) {
+        return true;
+      }
+      const title = state.productDetails[row.boxId]?.title || "";
+      return [row.boxId, row.itemName, title, row.revised, row.priceListed]
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    })
+    .sort((left, right) => compareBoxIds(left.boxId, right.boxId, "asc"));
+
+  const hiddenCount = items.filter((row) => row.hidden).length;
+
+  const main = document.createElement("main");
+  main.className = "shell";
+  main.innerHTML = `
+    <section class="panel detail-panel">
+      <div class="detail-header">
+        <div>
+          <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
+          <p class="eyebrow">Admin Catalog</p>
+          <h1>${escapeHtml(catalog.label)}</h1>
+          <p class="detail-subtitle">Box IDs ${catalog.from}–${catalog.to}. Shows every item including hidden ones. The public ${escapeHtml(catalog.label)} page hides the hidden ones.</p>
+        </div>
+        <div class="detail-meta">
+          <span class="detail-pill">${items.length} item${items.length === 1 ? "" : "s"}</span>
+          <span class="detail-pill ${hiddenCount ? "pill-hidden" : "pill-public"}">${hiddenCount} hidden</span>
+          <a class="detail-pill pill-link" href="/${encodeURIComponent(catalogName)}" target="_blank" rel="noopener">Open public page ↗</a>
+        </div>
+      </div>
+
+      <div class="catalog-toolbar">
+        <label class="search-field">
+          <span>Search ${escapeHtml(catalog.label)}</span>
+          <input id="catalog-search" type="search" value="${escapeAttribute(state.catalogSearch)}" placeholder="Box ID, name, price..." />
+        </label>
+      </div>
+
+      ${
+        items.length
+          ? `<div class="catalog-grid">${items.map(catalogCard).join("")}</div>`
+          : `<div class="empty-state"><h2>No items in this range yet</h2><p>Items with a Box ID from ${catalog.from} to ${catalog.to} will appear here.</p></div>`
+      }
+    </section>
+  `;
+
+  app.append(main);
+  bindCatalogEvents(catalogName);
+}
+
+function catalogCard(row) {
+  const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+  const image = detail.images && detail.images[0];
+  const title =
+    stripBoxIdPrefix(detail.title, row.boxId) ||
+    stripBoxIdPrefix(row.itemName || "", row.boxId) ||
+    "Untitled item";
+  const price = (row.revised || "").trim() || (row.priceListed || "").trim() || "No price";
+  const productHref = appPath(`/${encodeURIComponent(row.boxId)}`);
+
+  return `
+    <article class="catalog-card ${row.hidden ? "is-hidden-item" : ""}">
+      <a class="catalog-card-media" data-route href="${productHref}">
+        ${
+          image
+            ? `<img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(title)}" loading="lazy" />`
+            : `<span class="catalog-card-noimage">No photo</span>`
+        }
+        ${row.hidden ? `<span class="catalog-card-badge">Hidden</span>` : ""}
+      </a>
+      <div class="catalog-card-body">
+        <div class="catalog-card-heading">
+          <a class="boxid-link" data-route href="${productHref}">${escapeHtml(row.boxId)}</a>
+          ${row.archived ? `<span class="detail-pill">Archived</span>` : ""}
+        </div>
+        <p class="catalog-card-title">${escapeHtml(title)}</p>
+        <p class="catalog-card-price">${escapeHtml(price)}</p>
+        <div class="catalog-card-actions">
+          <label class="checkbox-wrap">
+            <input type="checkbox" data-catalog-hidden="${escapeAttribute(row.boxId)}" ${row.hidden ? "checked" : ""} />
+            <span>${row.hidden ? "Hidden" : "Public"}</span>
+          </label>
+          <a class="button-link" data-route href="${productHref}">Edit</a>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function bindCatalogEvents(catalogName) {
+  const searchInput = document.querySelector("#catalog-search");
+  searchInput?.addEventListener("input", (event) => {
+    state.catalogSearch = event.target.value;
+    render();
+    window.requestAnimationFrame(() => {
+      const refreshed = document.querySelector("#catalog-search");
+      if (!refreshed) {
+        return;
+      }
+      refreshed.focus();
+      refreshed.setSelectionRange(state.catalogSearch.length, state.catalogSearch.length);
+    });
+  });
+
+  document.querySelectorAll("[data-catalog-hidden]").forEach((input) => {
+    input.addEventListener("change", async (event) => {
+      const boxId = event.target.dataset.catalogHidden;
+      const row = state.rows.find((entry) => entry.boxId === boxId);
+      if (!row) {
+        return;
+      }
+      row.hidden = event.target.checked;
+      await saveRows(state.rows);
+      setSaveMessage(`${row.hidden ? "Hid" : "Unhid"} ${boxId} from public view.`);
+      render();
+    });
+  });
+}
+
 function renderDashboard() {
   const main = document.createElement("main");
   main.className = "shell";
@@ -393,6 +541,8 @@ function renderDashboard() {
           </label>
           <button id="add-row-button" class="button secondary" type="button">Add Row</button>
           <button id="export-button" class="button ghost" type="button">Export CSV</button>
+          <a class="button ghost" data-route href="${appPath("/hvac")}">HVAC</a>
+          <a class="button ghost" data-route href="${appPath("/apparel")}">Apparel</a>
           <a class="button ghost" data-route href="${appPath("/health")}">Health</a>
           ${state.session.authRequired ? `<button id="sign-out-button" class="button ghost" type="button">Sign out</button>` : ""}
         </div>
@@ -1317,6 +1467,16 @@ function getCurrentRoute() {
   if (parts[0] === "health") {
     return {
       page: "health",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
+  const catalogKey = (parts[0] || "").toLowerCase();
+  if (CATALOGS[catalogKey] && !parts[1]) {
+    return {
+      page: "catalog",
+      catalog: catalogKey,
       boxId: "",
       subpage: "",
     };
