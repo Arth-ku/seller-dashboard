@@ -9,12 +9,58 @@ let persistQueue = Promise.resolve();
 const APP_CONFIG = window.__APP_CONFIG__ || {};
 const BASE_PATH = normalizeBasePath(APP_CONFIG.basePath);
 
+export async function fetchSession() {
+  try {
+    const response = await fetch(toApiUrl("/api/session"), {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      return { authenticated: false, authRequired: true };
+    }
+    const payload = await response.json();
+    return {
+      authenticated: Boolean(payload.authenticated),
+      authRequired: Boolean(payload.authRequired),
+    };
+  } catch (error) {
+    return { authenticated: false, authRequired: true };
+  }
+}
+
+export async function login(password) {
+  const response = await fetch(toApiUrl("/api/login"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+
+  if (response.status === 401) {
+    return { ok: false, error: "Incorrect password." };
+  }
+
+  if (!response.ok) {
+    return { ok: false, error: "Login failed. Please try again." };
+  }
+
+  return { ok: true };
+}
+
+export async function logout() {
+  await fetch(toApiUrl("/api/logout"), { method: "POST" });
+}
+
 export async function loadAppState() {
   const response = await fetch(toApiUrl("/api/state"), {
     headers: {
       Accept: "application/json",
     },
   });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
 
   if (!response.ok) {
     throw new Error("Failed to load shared app state from the server.");

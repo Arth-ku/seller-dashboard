@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
@@ -12,6 +14,7 @@ import uuid
 from email.parser import BytesParser
 from email.policy import default
 from http import HTTPStatus
+from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -19,6 +22,31 @@ from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent
+
+
+def load_env_file(path: Path) -> None:
+    """Load simple KEY=VALUE lines from a local .env into os.environ.
+
+    Convenience for manual/local runs so `python3 server.py` picks up secrets like
+    SELLER_ADMIN_PASSWORD without exporting them by hand. In production the systemd
+    unit supplies these via its EnvironmentFile. Existing environment variables win,
+    so this never overrides values set by systemd or the shell.
+    """
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+load_env_file(ROOT / ".env")
+
 DATA_DIR = ROOT / "data"
 UPLOADS_DIR = ROOT / "uploads"
 DB_PATH = DATA_DIR / "seller_dashboard.db"
@@ -31,6 +59,14 @@ PORT = int(os.environ.get("SELLER_DASHBOARD_PORT", "8000"))
 BASE_PATH = os.environ.get("SELLER_DASHBOARD_BASE_PATH", "").strip()
 PUBLIC_ALLOWED_ORIGIN = os.environ.get("SELLER_PUBLIC_ALLOWED_ORIGIN", "*").strip() or "*"
 JSON_HEADERS = {"Content-Type": "application/json; charset=utf-8"}
+
+# Admin auth. When SELLER_ADMIN_PASSWORD is set, the dashboard and its edit APIs
+# require a signed cookie from /api/login. When empty, the app runs open (previous
+# behaviour); the public API still hides "hidden" items regardless.
+ADMIN_PASSWORD = os.environ.get("SELLER_ADMIN_PASSWORD", "").strip()
+AUTH_REQUIRED = bool(ADMIN_PASSWORD)
+COOKIE_NAME = "sd_admin"
+COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10  # ~10 years — "stay signed in" for personal use
 HEALTH_LIGHT_CACHE_SECONDS = 10
 HEALTH_DEEP_CACHE_SECONDS = 300
 APPAREL_MIN_BOX_ID = 1000
@@ -107,6 +143,16 @@ def normalize_base_path(value: str) -> str:
 
 
 APP_PREFIX = normalize_base_path(BASE_PATH)
+COOKIE_PATH = f"{APP_PREFIX}/" if APP_PREFIX else "/"
+
+
+def auth_token() -> str:
+    # Stable token derived from the password; comparing the cookie to this keeps the
+    # session valid indefinitely without server-side session storage.
+    return hashlib.sha256(f"seller-dashboard:{ADMIN_PASSWORD}".encode("utf-8")).hexdigest()
+
+
+AUTH_TOKEN = auth_token() if AUTH_REQUIRED else ""
 
 mimetypes.add_type("image/heic", ".heic")
 mimetypes.add_type("image/heif", ".heif")
@@ -716,7 +762,14 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 return self.redirect(f"{APP_PREFIX}/")
             return self.send_error(HTTPStatus.NOT_FOUND, "Not found")
 
+        if normalized_path == "/api/session":
+            return self.respond_json(
+                {"authenticated": self.is_authenticated(), "authRequired": AUTH_REQUIRED}
+            )
+
         if normalized_path == "/api/state":
+            if not self.require_auth():
+                return None
             return self.respond_json(load_state())
 
         if normalized_path == "/api/ping":
@@ -781,6 +834,9 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         if normalized_path != "/api/state":
             return self.respond_error(HTTPStatus.NOT_FOUND, "API route not found")
 
+        if not self.require_auth():
+            return
+
         payload = self.read_json_body()
         if payload is None:
             return
@@ -796,10 +852,19 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         normalized_path = self._normalize_request_path(self.path)
-        if normalized_path != "/api/upload":
-            return self.respond_error(HTTPStatus.NOT_FOUND, "API route not found")
 
-        return self.handle_upload(urlparse(self.path))
+        if normalized_path == "/api/login":
+            return self.handle_login()
+
+        if normalized_path == "/api/logout":
+            return self.handle_logout()
+
+        if normalized_path == "/api/upload":
+            if not self.require_auth():
+                return None
+            return self.handle_upload(urlparse(self.path))
+
+        return self.respond_error(HTTPStatus.NOT_FOUND, "API route not found")
 
     def do_OPTIONS(self) -> None:
         normalized_path = self._normalize_request_path(self.path)
@@ -813,6 +878,64 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+    def is_authenticated(self) -> bool:
+        if not AUTH_REQUIRED:
+            return True
+
+        cookie_header = self.headers.get("Cookie", "")
+        if not cookie_header:
+            return False
+
+        cookies = SimpleCookie()
+        try:
+            cookies.load(cookie_header)
+        except CookieError:
+            return False
+
+        morsel = cookies.get(COOKIE_NAME)
+        if morsel is None:
+            return False
+
+        return hmac.compare_digest(morsel.value, AUTH_TOKEN)
+
+    def require_auth(self) -> bool:
+        if self.is_authenticated():
+            return True
+        self.respond_error(HTTPStatus.UNAUTHORIZED, "Authentication required")
+        return False
+
+    def handle_login(self) -> None:
+        payload = self.read_json_body()
+        if payload is None:
+            return
+
+        if not AUTH_REQUIRED:
+            return self.respond_json({"ok": True, "authRequired": False})
+
+        password = str(payload.get("password", ""))
+        if not hmac.compare_digest(password, ADMIN_PASSWORD):
+            return self.respond_error(HTTPStatus.UNAUTHORIZED, "Incorrect password")
+
+        return self.respond_json(
+            {"ok": True},
+            extra_headers={"Set-Cookie": self.build_session_cookie(AUTH_TOKEN, COOKIE_MAX_AGE)},
+        )
+
+    def handle_logout(self) -> None:
+        return self.respond_json(
+            {"ok": True}, extra_headers={"Set-Cookie": self.build_session_cookie("", 0)}
+        )
+
+    def build_session_cookie(self, value: str, max_age: int) -> str:
+        cookie = SimpleCookie()
+        cookie[COOKIE_NAME] = value
+        morsel = cookie[COOKIE_NAME]
+        morsel["path"] = COOKIE_PATH
+        morsel["max-age"] = str(max_age)
+        morsel["httponly"] = True
+        morsel["samesite"] = "Lax"
+        return morsel.OutputString()
 
     def handle_upload(self, parsed) -> None:
         query = parse_qs(parsed.query)
@@ -920,6 +1043,11 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         if not row and not detail:
             return self.respond_error(HTTPStatus.NOT_FOUND, "Product not found")
 
+        # Items flagged "hidden" in the dashboard stay fully visible to the admin but are
+        # not available publicly: the public authenticity API 404s for them.
+        if row and bool(row.get("hidden")):
+            return self.respond_error(HTTPStatus.NOT_FOUND, "Product not found")
+
         payload = public_product_payload(row, detail, box_id, self)
         return self.respond_json(payload, extra_headers=self.public_cors_headers())
 
@@ -940,6 +1068,9 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             row = rows_by_box_id.get(box_id)
             detail = details.get(box_id, {})
             if not row and not detail:
+                continue
+
+            if row and bool(row.get("hidden")):
                 continue
 
             payload = public_product_payload(row, detail, box_id, self, catalog["clients"])
@@ -1104,6 +1235,10 @@ if __name__ == "__main__":
     with ThreadingHTTPServer((HOST, PORT), SellerDashboardHandler) as server:
         display_path = f"{APP_PREFIX}/" if APP_PREFIX else "/"
         print(f"Seller Dashboard running at http://{HOST}:{PORT}{display_path}")
+        if AUTH_REQUIRED:
+            print("Admin login required (SELLER_ADMIN_PASSWORD is set).")
+        else:
+            print("WARNING: no SELLER_ADMIN_PASSWORD set — the dashboard is open to anyone who can reach it.")
         try:
             server.serve_forever()
         except KeyboardInterrupt:
