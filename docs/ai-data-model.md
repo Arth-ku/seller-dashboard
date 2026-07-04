@@ -40,7 +40,7 @@ Items outside those ranges should be surfaced as uncategorized, not silently ign
 
 ## Historical Sales Analysis
 
-Sold-analysis widgets should support calendar playback by selected year, month, and week. The filter uses `Sold Day` as the sale date and recalculates revenue, estimated net, channel mix, delivery/payment signals, and data cleanup counts for the selected period.
+Sold-analysis widgets should support calendar playback by selected year, month, and week number. Do not use day-level date pickers for this workflow. If the user selects a month but does not select a week number, the widget must show the whole selected month. The filter uses `Sold Day` as the sale date and recalculates revenue, estimated net, channel mix, delivery/payment signals, and data cleanup counts for the selected period.
 
 ## Core Row State
 

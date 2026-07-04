@@ -422,14 +422,19 @@ textarea:focus {
 
 .sales-period-controls {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(170px, 1fr);
+  grid-template-columns: minmax(130px, 0.9fr) repeat(3, minmax(130px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid rgba(31, 33, 27, 0.08);
+  border-radius: var(--radius-sm);
+  background: #f7f8f5;
 }
 
 .compact-field {
   padding: 10px;
   border-radius: 10px;
+  background: #fff;
 }
 
 .analysis-metric {
@@ -666,6 +671,18 @@ textarea:focus {
 .business-mini-row {
   padding: 11px 0;
   border-top: 1px solid rgba(31, 33, 27, 0.08);
+}
+
+.expand-health-list {
+  margin-top: 4px;
+}
+
+.expand-health-list summary {
+  padding: 12px 0 2px;
+  border-top: 1px solid rgba(31, 33, 27, 0.08);
+  color: var(--brand);
+  cursor: pointer;
+  font-weight: 800;
 }
 
 .health-rank-table {

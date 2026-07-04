@@ -82,7 +82,9 @@ const state = {
   historySnapshots: [],
   viewingSnapshot: null,
   salesPeriodMode: "all",
-  salesPeriodDate: new Date().toISOString().slice(0, 10),
+  salesPeriodYear: new Date().getFullYear(),
+  salesPeriodMonth: new Date().getMonth() + 1,
+  salesPeriodWeek: "",
 };
 let healthRefreshTimer = null;
 
@@ -641,8 +643,19 @@ function bindCatalogEvents(catalogName) {
     render();
   });
 
-  document.querySelector("#sales-period-date")?.addEventListener("change", (event) => {
-    state.salesPeriodDate = event.target.value || new Date().toISOString().slice(0, 10);
+  document.querySelector("#sales-period-year")?.addEventListener("change", (event) => {
+    state.salesPeriodYear = Number(event.target.value) || new Date().getFullYear();
+    render();
+  });
+
+  document.querySelector("#sales-period-month")?.addEventListener("change", (event) => {
+    state.salesPeriodMonth = Number(event.target.value) || new Date().getMonth() + 1;
+    state.salesPeriodWeek = "";
+    render();
+  });
+
+  document.querySelector("#sales-period-week")?.addEventListener("change", (event) => {
+    state.salesPeriodWeek = event.target.value;
     render();
   });
 
@@ -1731,6 +1744,7 @@ function renderCatalogAnalytics(items) {
   const live = analytics.live;
   const sold = analytics.sold;
   const periodLabel = getSalesPeriodLabel();
+  const selectedMode = state.salesPeriodMode || "all";
 
   return `
     <div class="analysis-grid">
@@ -1770,17 +1784,30 @@ function renderCatalogAnalytics(items) {
         </div>
         <div class="sales-period-controls">
           <label class="search-field compact-field">
-            <span>Period</span>
+            <span>View</span>
             <select id="sales-period-mode">
               <option value="all" ${state.salesPeriodMode === "all" ? "selected" : ""}>All time</option>
-              <option value="year" ${state.salesPeriodMode === "year" ? "selected" : ""}>Selected year</option>
-              <option value="month" ${state.salesPeriodMode === "month" ? "selected" : ""}>Selected month</option>
-              <option value="week" ${state.salesPeriodMode === "week" ? "selected" : ""}>Selected week</option>
+              <option value="year" ${state.salesPeriodMode === "year" ? "selected" : ""}>Year</option>
+              <option value="month" ${state.salesPeriodMode === "month" ? "selected" : ""}>Month</option>
             </select>
           </label>
           <label class="search-field compact-field">
-            <span>Calendar date</span>
-            <input id="sales-period-date" type="date" value="${escapeAttribute(state.salesPeriodDate || new Date().toISOString().slice(0, 10))}" ${state.salesPeriodMode === "all" ? "disabled" : ""} />
+            <span>Year</span>
+            <select id="sales-period-year" ${selectedMode === "all" ? "disabled" : ""}>
+              ${renderYearOptions(items)}
+            </select>
+          </label>
+          <label class="search-field compact-field">
+            <span>Month</span>
+            <select id="sales-period-month" ${selectedMode !== "month" ? "disabled" : ""}>
+              ${renderMonthOptions()}
+            </select>
+          </label>
+          <label class="search-field compact-field">
+            <span>Week</span>
+            <select id="sales-period-week" ${selectedMode !== "month" ? "disabled" : ""}>
+              ${renderWeekOptions()}
+            </select>
           </label>
         </div>
         <div class="analysis-metrics">
@@ -1823,8 +1850,9 @@ function renderBusinessPriorityBoard(items) {
   const liveScores = items
     .filter((row) => !row.archived)
     .map(scoreLiveItem)
-    .sort((left, right) => right.score - left.score)
-    .slice(0, 6);
+    .sort((left, right) => right.score - left.score);
+  const visibleLiveScores = liveScores.slice(0, 6);
+  const hiddenLiveScores = liveScores.slice(6);
   const quickWins = items
     .filter((row) => !row.archived)
     .map(scoreLiveItem)
@@ -1850,7 +1878,19 @@ function renderBusinessPriorityBoard(items) {
           <h2>Unit health rank</h2>
           <p>Highest scores are the active listings most likely to need action.</p>
         </div>
-        ${liveScores.length ? liveScores.map(liveRankRow).join("") : `<p class="analysis-empty">No live items to rank.</p>`}
+        ${
+          liveScores.length
+            ? `${visibleLiveScores.map(liveRankRow).join("")}
+               ${
+                 hiddenLiveScores.length
+                   ? `<details class="expand-health-list">
+                        <summary>Show all ${liveScores.length} ranked units</summary>
+                        ${hiddenLiveScores.map(liveRankRow).join("")}
+                      </details>`
+                   : ""
+               }`
+            : `<p class="analysis-empty">No live items to rank.</p>`
+        }
       </section>
 
       <section class="business-panel">
@@ -1967,6 +2007,49 @@ function analysisMetric(label, value) {
       <strong>${escapeHtml(value)}</strong>
     </div>
   `;
+}
+
+function renderYearOptions(items) {
+  const currentYear = new Date().getFullYear();
+  const years = new Set([currentYear, Number(state.salesPeriodYear) || currentYear]);
+  items
+    .filter((row) => row.archived)
+    .forEach((row) => {
+      const soldDate = parseLooseDate(row.soldDay);
+      if (soldDate) {
+        years.add(soldDate.getFullYear());
+      }
+    });
+
+  return Array.from(years)
+    .filter((year) => Number.isInteger(year))
+    .sort((left, right) => right - left)
+    .map(
+      (year) =>
+        `<option value="${year}" ${Number(state.salesPeriodYear) === year ? "selected" : ""}>${year}</option>`,
+    )
+    .join("");
+}
+
+function renderMonthOptions() {
+  return Array.from({ length: 12 }, (_, index) => {
+    const month = index + 1;
+    const label = new Date(2026, index, 1).toLocaleDateString(undefined, { month: "long" });
+    return `<option value="${month}" ${Number(state.salesPeriodMonth) === month ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+function renderWeekOptions() {
+  const weekCount = getWeeksInSelectedMonth();
+  const options = [`<option value="" ${state.salesPeriodWeek ? "" : "selected"}>All weeks</option>`];
+  for (let week = 1; week <= weekCount; week += 1) {
+    const range = getSelectedMonthWeekRange(week);
+    const label = range ? `Week ${week} (${range.start.getDate()}-${range.end.getDate()})` : `Week ${week}`;
+    options.push(
+      `<option value="${week}" ${String(state.salesPeriodWeek) === String(week) ? "selected" : ""}>${escapeHtml(label)}</option>`,
+    );
+  }
+  return options.join("");
 }
 
 function actionRowItem(entry) {
@@ -2452,38 +2535,32 @@ function parseLooseDate(value, now = new Date()) {
   return match ? parseDateParts(match[1], match[2], match[3], now) : null;
 }
 
-function parseDateInput(value) {
-  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) {
-    return null;
-  }
-  return parseDateParts(match[2], match[3], match[1]);
-}
-
 function filterSoldRowsByPeriod(rows) {
   const mode = state.salesPeriodMode || "all";
   if (mode === "all") {
     return rows;
   }
 
-  const anchor = parseDateInput(state.salesPeriodDate) || new Date();
-  const weekStart = startOfWeek(anchor);
-  const weekEnd = addDays(weekStart, 7);
+  const year = getSelectedSalesYear();
+  const month = getSelectedSalesMonth();
+  const selectedWeek = parseSelectedSalesWeek();
+  const weekRange = mode === "month" && selectedWeek ? getSelectedMonthWeekRange(selectedWeek) : null;
 
   return rows.filter((row) => {
-    const soldDate = parseLooseDate(row.soldDay, anchor);
+    const soldDate = parseLooseDate(row.soldDay, new Date(year, month - 1, 1));
     if (!soldDate) {
       return false;
     }
 
     if (mode === "year") {
-      return soldDate.getFullYear() === anchor.getFullYear();
+      return soldDate.getFullYear() === year;
     }
     if (mode === "month") {
-      return soldDate.getFullYear() === anchor.getFullYear() && soldDate.getMonth() === anchor.getMonth();
-    }
-    if (mode === "week") {
-      return soldDate >= weekStart && soldDate < weekEnd;
+      const sameMonth = soldDate.getFullYear() === year && soldDate.getMonth() === month - 1;
+      if (!sameMonth) {
+        return false;
+      }
+      return weekRange ? soldDate >= weekRange.start && soldDate <= weekRange.end : true;
     }
     return true;
   });
@@ -2491,26 +2568,67 @@ function filterSoldRowsByPeriod(rows) {
 
 function getSalesPeriodLabel() {
   const mode = state.salesPeriodMode || "all";
-  const anchor = parseDateInput(state.salesPeriodDate) || new Date();
+  const year = getSelectedSalesYear();
+  const month = getSelectedSalesMonth();
 
   if (mode === "year") {
-    return String(anchor.getFullYear());
+    return String(year);
   }
   if (mode === "month") {
-    return anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  }
-  if (mode === "week") {
-    const start = startOfWeek(anchor);
-    const end = addDays(start, 6);
-    return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const selectedWeek = parseSelectedSalesWeek();
+    const weekRange = selectedWeek ? getSelectedMonthWeekRange(selectedWeek) : null;
+    return weekRange
+      ? `${monthLabel}, week ${selectedWeek} (${weekRange.start.getDate()}-${weekRange.end.getDate()})`
+      : monthLabel;
   }
   return "all time";
 }
 
-function startOfWeek(date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  start.setDate(start.getDate() - start.getDay());
-  return start;
+function getSelectedSalesYear() {
+  return Number(state.salesPeriodYear) || new Date().getFullYear();
+}
+
+function getSelectedSalesMonth() {
+  const month = Number(state.salesPeriodMonth);
+  return month >= 1 && month <= 12 ? month : new Date().getMonth() + 1;
+}
+
+function getWeeksInSelectedMonth() {
+  const year = getSelectedSalesYear();
+  const month = getSelectedSalesMonth();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  return Math.ceil(daysInMonth / 7);
+}
+
+function parseSelectedSalesWeek() {
+  const raw = String(state.salesPeriodWeek || "").trim();
+  if (!raw) {
+    return null;
+  }
+  const week = Number(raw);
+  return Number.isInteger(week) && week > 0 ? week : null;
+}
+
+function getSelectedMonthWeekRange(week) {
+  const weekNumber = Number(week);
+  if (!Number.isInteger(weekNumber) || weekNumber < 1) {
+    return null;
+  }
+
+  const year = getSelectedSalesYear();
+  const month = getSelectedSalesMonth();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const startDay = (weekNumber - 1) * 7 + 1;
+  if (startDay > daysInMonth) {
+    return null;
+  }
+
+  const endDay = Math.min(startDay + 6, daysInMonth);
+  return {
+    start: new Date(year, month - 1, startDay),
+    end: new Date(year, month - 1, endDay, 23, 59, 59, 999),
+  };
 }
 
 function parseDateParts(monthText, dayText, yearText, now = new Date()) {
