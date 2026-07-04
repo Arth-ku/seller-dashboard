@@ -23,6 +23,9 @@ DATA_DIR = ROOT / "data"
 UPLOADS_DIR = ROOT / "uploads"
 DB_PATH = DATA_DIR / "seller_dashboard.db"
 HEALTH_JOURNAL_DIR = DATA_DIR / "health-journal"
+NVME_BACKUP_ROOT = Path("/srv/seller-dashboard-backup")
+NVME_BACKUP_CURRENT = NVME_BACKUP_ROOT / "current"
+NVME_BACKUP_LAST_SUCCESS = NVME_BACKUP_ROOT / "last-success.txt"
 HOST = os.environ.get("SELLER_DASHBOARD_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SELLER_DASHBOARD_PORT", "8000"))
 BASE_PATH = os.environ.get("SELLER_DASHBOARD_BASE_PATH", "").strip()
@@ -305,6 +308,30 @@ def backup_health() -> dict:
     )
 
 
+def nvme_backup_health() -> dict:
+    if not NVME_BACKUP_ROOT.exists():
+        return status_item("bad", "NVMe backup mirror", "Missing", str(NVME_BACKUP_ROOT))
+    mount_code, mount_output = run_command(["findmnt", "-rn", "--target", str(NVME_BACKUP_ROOT)])
+    if mount_code != 0:
+        return status_item("bad", "NVMe backup mirror", "Not mounted", str(NVME_BACKUP_ROOT))
+    if not NVME_BACKUP_LAST_SUCCESS.exists():
+        return status_item("bad", "NVMe backup mirror", "No successful run", str(NVME_BACKUP_LAST_SUCCESS))
+
+    latest = NVME_BACKUP_LAST_SUCCESS.stat()
+    age_minutes = max(0, int((time.time() - latest.st_mtime) // 60))
+    if age_minutes <= 90:
+        state = "ok"
+    elif age_minutes <= 180:
+        state = "warn"
+    else:
+        state = "bad"
+    backup_size = directory_size(NVME_BACKUP_CURRENT)
+    detail_parts = [f"{bytes_human(backup_size)} mirrored"]
+    if mount_output:
+        detail_parts.append(mount_output.split()[0])
+    return status_item(state, "NVMe backup mirror", f"{age_minutes} min old", ", ".join(detail_parts))
+
+
 def database_health() -> dict:
     if not DB_PATH.exists():
         return status_item("bad", "Database", "Missing", str(DB_PATH))
@@ -352,6 +379,7 @@ def collect_light_health() -> dict:
             service_health("nginx"),
             service_health("cloudflared"),
             service_health("seller-dashboard-backup.timer"),
+            service_health("seller-dashboard-nvme-backup.timer"),
             endpoint_health("Private API", "http://127.0.0.1:8000/sell/api/ping"),
             endpoint_health("Public homepage", "http://127.0.0.1/", {"Host": "authenticitycheck.net"}),
             endpoint_health(
@@ -369,6 +397,7 @@ def collect_deep_health() -> dict:
         "items": [
             database_health(),
             backup_health(),
+            nvme_backup_health(),
             status_item(
                 "ok" if UPLOADS_DIR.exists() else "bad",
                 "Uploads size",

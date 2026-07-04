@@ -718,6 +718,13 @@ function bindDashboardEvents() {
   });
 
   exportButton?.addEventListener("click", () => {
+    const password = window.prompt("Enter export password");
+    if (password !== IMPORT_PASSWORD) {
+      setSaveMessage("CSV export canceled. Password was not accepted.");
+      render();
+      return;
+    }
+
     const csv = serializeRowsToCsv(state.rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
