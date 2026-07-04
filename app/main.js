@@ -40,12 +40,12 @@ const CATALOGS = {
   units: {
     label: "Units",
     from: 1,
-    to: 1000,
+    to: 999,
     ranges: [
       [1, 700],
-      [800, 1000],
+      [800, 999],
     ],
-    rangeLabel: "1-700, 800-1000 plus UNKNOWN",
+    rangeLabel: "1-700, 800-999 plus UNKNOWN",
     includeUnknown: true,
     description: "General inventory units, plus older UNKNOWN rows without a numeric Box ID.",
   },
