@@ -40,24 +40,28 @@ const CATALOGS = {
   units: {
     label: "Units",
     from: 1,
-    to: 699,
-    rangeLabel: "1-700 plus UNKNOWN",
+    to: 1000,
+    ranges: [
+      [1, 700],
+      [800, 1000],
+    ],
+    rangeLabel: "1-700, 800-1000 plus UNKNOWN",
     includeUnknown: true,
-    description: "General inventory units before the HVAC range, plus older UNKNOWN rows without a numeric Box ID.",
+    description: "General inventory units, plus older UNKNOWN rows without a numeric Box ID.",
   },
   hvac: {
     label: "HVAC",
     from: 700,
-    to: 1000,
-    rangeLabel: "700-1000",
+    to: 800,
+    rangeLabel: "700-800",
     description: "HVAC systems, AC units, dehumidifiers, and related equipment.",
     publicPath: "/hvac",
   },
   apparel: {
     label: "Apparel",
-    from: 1100,
-    to: 2000,
-    rangeLabel: "1100-2000",
+    from: 1000,
+    to: 1100,
+    rangeLabel: "1000-1100",
     description: "Designer and apparel inventory.",
     publicPath: "/apparel",
   },
@@ -387,7 +391,7 @@ function renderHealthRankPage() {
     .filter((row) => !row.archived)
     .map((row) => ({
       ...scoreLiveItem(row),
-      category: getCatalogForRow(row),
+      categoryLabel: getCatalogLabelsForRow(row).join(" / ") || "Uncategorized",
     }))
     .sort((left, right) => right.score - left.score || compareBoxIds(left.row.boxId, right.row.boxId, "asc"));
   const badCount = ranked.filter((entry) => entry.severity === "bad").length;
@@ -444,7 +448,7 @@ function fullHealthRankRow(entry) {
           ${entry.reasons.map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")}
         </div>
       </div>
-      <div>${escapeHtml(entry.category?.label || "Uncategorized")}</div>
+      <div>${escapeHtml(entry.categoryLabel)}</div>
       <div>${entry.ageDays == null ? "No date" : `${entry.ageDays} days`}</div>
       <div>${escapeHtml(entry.primaryAdvice)}</div>
     </article>
@@ -2572,24 +2576,32 @@ function rowBelongsToCatalog(row, catalog) {
   const hasNumericId = /^\d+$/.test(raw) && Number.isInteger(number);
 
   if (hasNumericId) {
-    return number >= catalog.from && number <= catalog.to;
+    return getCatalogRanges(catalog).some(([from, to]) => number >= from && number <= to);
   }
 
   return Boolean(catalog.includeUnknown);
 }
 
-function getCatalogForRow(row) {
-  return CATEGORY_ORDER.map((key) => CATALOGS[key]).find((catalog) => rowBelongsToCatalog(row, catalog)) || null;
+function getCatalogLabelsForRow(row) {
+  return CATEGORY_ORDER.map((key) => CATALOGS[key])
+    .filter((catalog) => rowBelongsToCatalog(row, catalog))
+    .map((catalog) => catalog.label);
 }
 
 function getNextAvailableBoxId(catalog, rows) {
   const used = new Set(rows.map((row) => String(row?.boxId ?? "").trim()).filter(Boolean));
-  for (let number = catalog.from; number <= catalog.to; number += 1) {
-    if (!used.has(String(number))) {
-      return String(number);
+  for (const [from, to] of getCatalogRanges(catalog)) {
+    for (let number = from; number <= to; number += 1) {
+      if (!used.has(String(number))) {
+        return String(number);
+      }
     }
   }
   return "";
+}
+
+function getCatalogRanges(catalog) {
+  return Array.isArray(catalog.ranges) && catalog.ranges.length ? catalog.ranges : [[catalog.from, catalog.to]];
 }
 
 function parseCurrency(value) {
@@ -2693,6 +2705,14 @@ function getCurrentRoute() {
   if (parts[0] === "health") {
     return {
       page: "health",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
+  if (parts[0] === "health-rank") {
+    return {
+      page: "health-rank",
       boxId: "",
       subpage: "",
     };

@@ -19,9 +19,9 @@ https://docs.google.com/spreadsheets/d/1nh4HWr8DAP26KziNTMGEtqs6LEkV8-Va9IDo7oTA
 Private dashboard categories:
 
 ```text
-Units    Box IDs 1-700 plus old UNKNOWN / missing Box ID rows
-HVAC     Box IDs 700-1000
-Apparel  Box IDs 1100-2000
+Units    Box IDs 1-700, 800-1000 plus old UNKNOWN / missing Box ID rows
+HVAC     Box IDs 700-800
+Apparel  Box IDs 1000-1100
 ```
 
 `/sell/` is a category overview. Category pages are:
@@ -32,7 +32,7 @@ Apparel  Box IDs 1100-2000
 /sell/apparel
 ```
 
-Implementation note: box `700` is assigned to HVAC to avoid duplicate category placement, even though the business language says Units runs up to 700. Older rows with blank, non-numeric, or `UNKNOWN...` Box IDs belong in Units so they remain visible and actionable.
+Implementation note: category ranges intentionally overlap at owner-defined boundary values (`700`, `800`, and `1000`). Keep the owner-facing ranges exactly as written above unless the owner changes the business rule. Older rows with blank, non-numeric, or `UNKNOWN...` Box IDs belong in Units so they remain visible and actionable.
 
 `/sell/health-rank` is the full live-inventory health page. It must rank every non-archived row, not only the first few top-risk items shown on category pages.
 
