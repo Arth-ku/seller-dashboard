@@ -382,6 +382,7 @@ function renderCatalogPage(catalogName) {
           <span>Search ${escapeHtml(catalog.label)}</span>
           <input id="catalog-search" type="search" value="${escapeAttribute(state.catalogSearch)}" placeholder="Box ID, name, price..." />
         </label>
+        <button id="catalog-add" class="button primary" type="button">Add ${escapeHtml(catalog.label)} item</button>
       </div>
 
       ${
@@ -436,6 +437,35 @@ function catalogCard(row) {
 }
 
 function bindCatalogEvents(catalogName) {
+  const catalog = CATALOGS[catalogName];
+
+  document.querySelector("#catalog-add")?.addEventListener("click", async () => {
+    const used = new Set(
+      state.rows.map((row) => String(row?.boxId ?? "").trim()).filter(Boolean),
+    );
+    let nextId = null;
+    for (let number = catalog.from; number <= catalog.to; number += 1) {
+      if (!used.has(String(number))) {
+        nextId = String(number);
+        break;
+      }
+    }
+
+    if (!nextId) {
+      setSaveMessage(`${catalog.label} range ${catalog.from}–${catalog.to} is full — no free Box ID.`);
+      render();
+      return;
+    }
+
+    const row = createEmptyRow(state.rows);
+    row.boxId = nextId;
+    row.isDraft = true;
+    state.rows = [row, ...state.rows];
+    await saveRows(state.rows);
+    setSaveMessage(`Added ${catalog.label} item ${nextId}. Add photos and details below.`);
+    navigate(`/${encodeURIComponent(nextId)}`);
+  });
+
   const searchInput = document.querySelector("#catalog-search");
   searchInput?.addEventListener("input", (event) => {
     state.catalogSearch = event.target.value;
@@ -1088,15 +1118,28 @@ function bindDetailEvents(boxId) {
       return;
     }
 
-    const current = collectDetailDraft(boxId);
-    const remainingSlots = Math.max(0, MAX_IMAGES_PER_PRODUCT - current.images.length);
+    const existingCount = (state.productDetails[boxId]?.images || []).length;
+    const remainingSlots = Math.max(0, MAX_IMAGES_PER_PRODUCT - existingCount);
+    if (remainingSlots <= 0) {
+      event.target.value = "";
+      setSaveMessage(`Maximum of ${MAX_IMAGES_PER_PRODUCT} images reached for ${boxId}.`);
+      render();
+      return;
+    }
+
     const nextFiles = files.slice(0, remainingSlots);
     const uploaded = await uploadImages(boxId, nextFiles);
 
-    current.images = current.images.concat(uploaded);
-    current.updatedAt = new Date().toISOString();
-    state.productDetails[boxId] = current;
+    // Re-read the draft AFTER the upload finishes. Capturing it before `await` let a slow
+    // upload clobber any edits made in the meantime (typed title, a second upload, etc.),
+    // which showed up as "didn't save". collectDetailDraft() now reflects the latest images
+    // plus whatever is currently typed in the title/description fields.
+    const draft = collectDetailDraft(boxId);
+    draft.images = draft.images.concat(uploaded);
+    draft.updatedAt = new Date().toISOString();
+    state.productDetails[boxId] = draft;
     await saveProductDetails(state.productDetails);
+    event.target.value = "";
     render();
   });
 

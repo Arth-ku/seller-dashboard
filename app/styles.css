@@ -911,10 +911,15 @@ a.pill-link {
 
 .catalog-toolbar {
   margin: 18px 0 8px;
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .catalog-toolbar .search-field {
   max-width: 420px;
+  flex: 1 1 280px;
 }
 
 .catalog-grid {

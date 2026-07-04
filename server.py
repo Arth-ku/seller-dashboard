@@ -67,6 +67,8 @@ ADMIN_PASSWORD = os.environ.get("SELLER_ADMIN_PASSWORD", "").strip()
 AUTH_REQUIRED = bool(ADMIN_PASSWORD)
 COOKIE_NAME = "sd_admin"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10  # ~10 years — "stay signed in" for personal use
+# Freshly uploaded images are protected from orphan-cleanup for this long (see delete_uploaded_file).
+UPLOAD_DELETE_GRACE_SECONDS = 15 * 60
 HEALTH_LIGHT_CACHE_SECONDS = 10
 HEALTH_DEEP_CACHE_SECONDS = 300
 APPAREL_MIN_BOX_ID = 1000
@@ -647,6 +649,15 @@ def delete_uploaded_file(storage_path: str) -> None:
         return
 
     if candidate.exists() and candidate.is_file():
+        # Safety net: never delete a file that was written very recently. Saves overwrite the
+        # whole state, so a stale/racy client save could momentarily omit a just-uploaded image
+        # and orphan it here. Skipping fresh files means the next (correct) save re-references it
+        # instead of it being deleted. Genuinely removed images are cleaned once they age out.
+        try:
+            if time.time() - candidate.stat().st_mtime < UPLOAD_DELETE_GRACE_SECONDS:
+                return
+        except OSError:
+            pass
         candidate.unlink()
         remove_empty_parent_dirs(candidate.parent)
 
