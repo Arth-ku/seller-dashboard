@@ -420,6 +420,18 @@ textarea:focus {
   gap: 10px;
 }
 
+.sales-period-controls {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(170px, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.compact-field {
+  padding: 10px;
+  border-radius: 10px;
+}
+
 .analysis-metric {
   padding: 10px;
   border: 1px solid rgba(31, 33, 27, 0.08);
@@ -502,6 +514,49 @@ textarea:focus {
 
 .analysis-breakdown-row span {
   color: var(--muted);
+}
+
+.cleanup-details {
+  border-top: 1px solid rgba(31, 33, 27, 0.08);
+  font-size: 0.9rem;
+}
+
+.cleanup-details summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  cursor: pointer;
+}
+
+.cleanup-details summary span {
+  color: var(--muted);
+}
+
+.cleanup-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 10px;
+}
+
+.cleanup-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f7f8f5;
+  color: var(--ink);
+}
+
+.cleanup-item span {
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.cleanup-item strong {
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .business-board {
@@ -611,6 +666,45 @@ textarea:focus {
 .business-mini-row {
   padding: 11px 0;
   border-top: 1px solid rgba(31, 33, 27, 0.08);
+}
+
+.health-rank-table {
+  display: grid;
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #fff;
+}
+
+.health-rank-header,
+.health-rank-row {
+  display: grid;
+  grid-template-columns: 72px minmax(260px, 1.6fr) 130px 110px minmax(240px, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 13px 16px;
+}
+
+.health-rank-header {
+  background: #f7f8f5;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.health-rank-row {
+  border-top: 1px solid rgba(31, 33, 27, 0.08);
+  font-size: 0.92rem;
+}
+
+.health-rank-row strong {
+  display: block;
+  margin-top: 4px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .catalog-section {
@@ -1214,8 +1308,14 @@ textarea:focus {
   .category-grid,
   .analysis-grid,
   .analysis-split,
-  .business-board {
+  .business-board,
+  .health-rank-header,
+  .health-rank-row {
     grid-template-columns: 1fr;
+  }
+
+  .health-rank-header {
+    display: none;
   }
 
   .priority-panel {
@@ -1237,7 +1337,8 @@ textarea:focus {
 
   .hero-stats,
   .snapshot-grid,
-  .analysis-metrics {
+  .analysis-metrics,
+  .sales-period-controls {
     grid-template-columns: 1fr;
   }
 

@@ -41,19 +41,23 @@ const CATALOGS = {
     label: "Units",
     from: 1,
     to: 699,
-    description: "General inventory units before the HVAC range.",
+    rangeLabel: "1-700 plus UNKNOWN",
+    includeUnknown: true,
+    description: "General inventory units before the HVAC range, plus older UNKNOWN rows without a numeric Box ID.",
   },
   hvac: {
     label: "HVAC",
     from: 700,
-    to: 800,
+    to: 1000,
+    rangeLabel: "700-1000",
     description: "HVAC systems, AC units, dehumidifiers, and related equipment.",
     publicPath: "/hvac",
   },
   apparel: {
     label: "Apparel",
-    from: 1000,
-    to: 1100,
+    from: 1100,
+    to: 2000,
+    rangeLabel: "1100-2000",
     description: "Designer and apparel inventory.",
     publicPath: "/apparel",
   },
@@ -73,6 +77,8 @@ const state = {
   catalogSearch: "",
   historySnapshots: [],
   viewingSnapshot: null,
+  salesPeriodMode: "all",
+  salesPeriodDate: new Date().toISOString().slice(0, 10),
 };
 let healthRefreshTimer = null;
 
@@ -224,6 +230,11 @@ function render() {
     return;
   }
 
+  if (route.page === "health-rank") {
+    renderHealthRankPage();
+    return;
+  }
+
   if (route.page === "catalog") {
     renderCatalogPage(route.catalog);
     return;
@@ -370,6 +381,76 @@ function renderHealthError(error) {
   }
 }
 
+function renderHealthRankPage() {
+  const rows = pruneRows((Array.isArray(state.rows) ? state.rows : []).map(normalizeRowState));
+  const ranked = rows
+    .filter((row) => !row.archived)
+    .map((row) => ({
+      ...scoreLiveItem(row),
+      category: getCatalogForRow(row),
+    }))
+    .sort((left, right) => right.score - left.score || compareBoxIds(left.row.boxId, right.row.boxId, "asc"));
+  const badCount = ranked.filter((entry) => entry.severity === "bad").length;
+  const warnCount = ranked.filter((entry) => entry.severity === "warn").length;
+  const okCount = ranked.length - badCount - warnCount;
+
+  const main = document.createElement("main");
+  main.className = "shell";
+  main.innerHTML = `
+    <section class="panel detail-panel">
+      <div class="detail-header">
+        <div>
+          <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
+          <p class="eyebrow">Active Inventory</p>
+          <h1>Unit health rank</h1>
+          <p class="detail-subtitle">Every live item ranked by business urgency: stale age, missing price/photos/content, weak tracking, and ad signals.</p>
+        </div>
+        <div class="detail-meta">
+          <span class="detail-pill">${ranked.length} live</span>
+          <span class="detail-pill pill-hidden">${badCount} critical</span>
+          <span class="detail-pill">${warnCount} watch</span>
+          <span class="detail-pill pill-public">${okCount} healthy</span>
+        </div>
+      </div>
+
+      <div class="health-rank-table">
+        <div class="health-rank-header">
+          <span>Score</span>
+          <span>Item</span>
+          <span>Category</span>
+          <span>Age</span>
+          <span>Advice</span>
+        </div>
+        ${
+          ranked.length
+            ? ranked.map(fullHealthRankRow).join("")
+            : `<div class="empty-state compact-empty"><h2>No live items</h2></div>`
+        }
+      </div>
+    </section>
+  `;
+
+  app.append(main);
+}
+
+function fullHealthRankRow(entry) {
+  return `
+    <article class="health-rank-row severity-${escapeAttribute(entry.severity)}">
+      <div class="rank-score">${entry.score}</div>
+      <div>
+        <a class="boxid-link" data-route href="${appPath(`/${encodeURIComponent(entry.row.boxId)}`)}">${escapeHtml(entry.row.boxId)}</a>
+        <strong>${escapeHtml(entry.title)}</strong>
+        <div class="rank-tags">
+          ${entry.reasons.map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")}
+        </div>
+      </div>
+      <div>${escapeHtml(entry.category?.label || "Uncategorized")}</div>
+      <div>${entry.ageDays == null ? "No date" : `${entry.ageDays} days`}</div>
+      <div>${escapeHtml(entry.primaryAdvice)}</div>
+    </article>
+  `;
+}
+
 function clearHealthRefresh() {
   if (healthRefreshTimer) {
     window.clearTimeout(healthRefreshTimer);
@@ -415,7 +496,7 @@ function renderCatalogPage(catalogName) {
           <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
           <p class="eyebrow">Inventory Category</p>
           <h1>${escapeHtml(catalog.label)}</h1>
-          <p class="detail-subtitle">Box IDs ${catalog.from}–${catalog.to}. ${escapeHtml(catalog.description || "Shows every matching item including hidden ones.")}</p>
+          <p class="detail-subtitle">Box IDs ${escapeHtml(catalog.rangeLabel || `${catalog.from}-${catalog.to}`)}. ${escapeHtml(catalog.description || "Shows every matching item including hidden ones.")}</p>
         </div>
         <div class="detail-meta">
           <span class="detail-pill">${items.length} item${items.length === 1 ? "" : "s"}</span>
@@ -441,7 +522,7 @@ function renderCatalogPage(catalogName) {
           ? `${renderBusinessPriorityBoard(items)}
              ${renderCatalogSection("Present / active listings", liveItems, "Items currently for sale. Work these before looking at sold history.", "present")}
              ${renderCatalogSection("Archived / sold history", archivedItems, "Sold items kept for channel, price, speed, and ad analysis.", "archived")}`
-          : `<div class="empty-state"><h2>No items in this range yet</h2><p>Items with a Box ID from ${catalog.from} to ${catalog.to} will appear here.</p></div>`
+          : `<div class="empty-state"><h2>No items in this range yet</h2><p>Items matching ${escapeHtml(catalog.rangeLabel || `${catalog.from}-${catalog.to}`)} will appear here.</p></div>`
       }
     </section>
   `;
@@ -551,6 +632,16 @@ function bindCatalogEvents(catalogName) {
     });
   });
 
+  document.querySelector("#sales-period-mode")?.addEventListener("change", (event) => {
+    state.salesPeriodMode = event.target.value;
+    render();
+  });
+
+  document.querySelector("#sales-period-date")?.addEventListener("change", (event) => {
+    state.salesPeriodDate = event.target.value || new Date().toISOString().slice(0, 10);
+    render();
+  });
+
   document.querySelectorAll("[data-catalog-hidden]").forEach((input) => {
     input.addEventListener("change", async (event) => {
       const boxId = event.target.dataset.catalogHidden;
@@ -636,6 +727,7 @@ function renderDashboard() {
             Import CSV
           </label>
           <button id="export-button" class="button ghost" type="button">Export CSV</button>
+          <a class="button ghost" data-route href="${appPath("/health-rank")}">Unit Health</a>
           <a class="button ghost" data-route href="${appPath("/units")}">Units</a>
           <a class="button ghost" data-route href="${appPath("/hvac")}">HVAC</a>
           <a class="button ghost" data-route href="${appPath("/apparel")}">Apparel</a>
@@ -1599,7 +1691,7 @@ function categoryCard(summary) {
   return `
     <article class="category-card">
       <div class="category-card-main">
-        <p class="category-range">Box IDs ${catalog.from}-${catalog.to}</p>
+        <p class="category-range">Box IDs ${escapeHtml(catalog.rangeLabel || `${catalog.from}-${catalog.to}`)}</p>
         <h3>${escapeHtml(catalog.label)}</h3>
         <p>${escapeHtml(catalog.description || "")}</p>
       </div>
@@ -1634,6 +1726,7 @@ function renderCatalogAnalytics(items) {
   const analytics = buildCatalogAnalytics(items);
   const live = analytics.live;
   const sold = analytics.sold;
+  const periodLabel = getSalesPeriodLabel();
 
   return `
     <div class="analysis-grid">
@@ -1667,9 +1760,24 @@ function renderCatalogAnalytics(items) {
         <div class="analysis-heading">
           <div>
             <h2>Sold analysis</h2>
-            <p>Archived items by channel, price, expense, and ad notes.</p>
+            <p>Archived items by channel, price, expense, and ad notes for ${escapeHtml(periodLabel)}.</p>
           </div>
           <span class="detail-pill">${sold.count} sold</span>
+        </div>
+        <div class="sales-period-controls">
+          <label class="search-field compact-field">
+            <span>Period</span>
+            <select id="sales-period-mode">
+              <option value="all" ${state.salesPeriodMode === "all" ? "selected" : ""}>All time</option>
+              <option value="year" ${state.salesPeriodMode === "year" ? "selected" : ""}>Selected year</option>
+              <option value="month" ${state.salesPeriodMode === "month" ? "selected" : ""}>Selected month</option>
+              <option value="week" ${state.salesPeriodMode === "week" ? "selected" : ""}>Selected week</option>
+            </select>
+          </label>
+          <label class="search-field compact-field">
+            <span>Calendar date</span>
+            <input id="sales-period-date" type="date" value="${escapeAttribute(state.salesPeriodDate || new Date().toISOString().slice(0, 10))}" ${state.salesPeriodMode === "all" ? "disabled" : ""} />
+          </label>
         </div>
         <div class="analysis-metrics">
           ${analysisMetric("Revenue", currencyFormatter.format(sold.revenue))}
@@ -1697,9 +1805,9 @@ function renderCatalogAnalytics(items) {
           </div>
           <div class="analysis-list">
             <h3>Data cleanup</h3>
-            ${dataQualityRow("Missing final price", sold.missingFinalPrice)}
-            ${dataQualityRow("Missing sold through", sold.missingSoldThrough)}
-            ${dataQualityRow("Missing sold day", sold.missingSoldDay)}
+            ${dataQualityRow("Missing final price", sold.missingFinalPriceRows)}
+            ${dataQualityRow("Missing sold through", sold.missingSoldThroughRows)}
+            ${dataQualityRow("Missing sold day", sold.missingSoldDayRows)}
           </div>
         </div>
       </section>
@@ -1770,7 +1878,8 @@ function renderBusinessPriorityBoard(items) {
 
 function buildCatalogAnalytics(items) {
   const liveRows = items.filter((row) => !row.archived);
-  const soldRows = items.filter((row) => row.archived);
+  const allSoldRows = items.filter((row) => row.archived);
+  const soldRows = filterSoldRowsByPeriod(allSoldRows);
   const now = new Date();
 
   const liveActionRows = liveRows
@@ -1832,9 +1941,10 @@ function buildCatalogAnalytics(items) {
       selfExpense,
       adSpend,
       estimatedNet: soldRevenue - selfExpense - adSpend,
-      missingFinalPrice: soldRows.filter((row) => parseCurrency(row.finalPrice) <= 0).length,
-      missingSoldThrough: soldRows.filter((row) => !String(row.soldThrough || "").trim()).length,
-      missingSoldDay: soldRows.filter((row) => !String(row.soldDay || "").trim()).length,
+      allCount: allSoldRows.length,
+      missingFinalPriceRows: soldRows.filter((row) => parseCurrency(row.finalPrice) <= 0),
+      missingSoldThroughRows: soldRows.filter((row) => !String(row.soldThrough || "").trim()),
+      missingSoldDayRows: soldRows.filter((row) => !String(row.soldDay || "").trim()),
       deliveryCount: buyerSignals.filter((signal) => signal.delivery).length,
       averageDeliveryMinutes: deliveryMinutes.length
         ? deliveryMinutes.reduce((total, value) => total + value, 0) / deliveryMinutes.length
@@ -1883,12 +1993,39 @@ function channelRow(channel) {
   `;
 }
 
-function dataQualityRow(label, count) {
+function dataQualityRow(label, rowsOrCount) {
+  const rows = Array.isArray(rowsOrCount) ? rowsOrCount : [];
+  const count = Array.isArray(rowsOrCount) ? rowsOrCount.length : Number(rowsOrCount || 0);
+  if (!rows.length) {
+    return `
+      <div class="analysis-breakdown-row">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(String(count))}</strong>
+      </div>
+    `;
+  }
+
   return `
-    <div class="analysis-breakdown-row">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(String(count))}</strong>
-    </div>
+    <details class="cleanup-details">
+      <summary>
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(String(count))}</strong>
+      </summary>
+      <div class="cleanup-list">
+        ${rows.slice(0, 30).map(cleanupItem).join("")}
+        ${rows.length > 30 ? `<p class="analysis-empty">Showing first 30 of ${rows.length} items.</p>` : ""}
+      </div>
+    </details>
+  `;
+}
+
+function cleanupItem(row) {
+  const title = stripBoxIdPrefix(row.itemName || "", row.boxId) || "Untitled item";
+  return `
+    <a class="cleanup-item" data-route href="${appPath(`/${encodeURIComponent(row.boxId)}`)}">
+      <span>${escapeHtml(row.boxId || "UNKNOWN")}</span>
+      <strong>${escapeHtml(title)}</strong>
+    </a>
   `;
 }
 
@@ -2311,6 +2448,67 @@ function parseLooseDate(value, now = new Date()) {
   return match ? parseDateParts(match[1], match[2], match[3], now) : null;
 }
 
+function parseDateInput(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  return parseDateParts(match[2], match[3], match[1]);
+}
+
+function filterSoldRowsByPeriod(rows) {
+  const mode = state.salesPeriodMode || "all";
+  if (mode === "all") {
+    return rows;
+  }
+
+  const anchor = parseDateInput(state.salesPeriodDate) || new Date();
+  const weekStart = startOfWeek(anchor);
+  const weekEnd = addDays(weekStart, 7);
+
+  return rows.filter((row) => {
+    const soldDate = parseLooseDate(row.soldDay, anchor);
+    if (!soldDate) {
+      return false;
+    }
+
+    if (mode === "year") {
+      return soldDate.getFullYear() === anchor.getFullYear();
+    }
+    if (mode === "month") {
+      return soldDate.getFullYear() === anchor.getFullYear() && soldDate.getMonth() === anchor.getMonth();
+    }
+    if (mode === "week") {
+      return soldDate >= weekStart && soldDate < weekEnd;
+    }
+    return true;
+  });
+}
+
+function getSalesPeriodLabel() {
+  const mode = state.salesPeriodMode || "all";
+  const anchor = parseDateInput(state.salesPeriodDate) || new Date();
+
+  if (mode === "year") {
+    return String(anchor.getFullYear());
+  }
+  if (mode === "month") {
+    return anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  }
+  if (mode === "week") {
+    const start = startOfWeek(anchor);
+    const end = addDays(start, 6);
+    return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+  }
+  return "all time";
+}
+
+function startOfWeek(date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
 function parseDateParts(monthText, dayText, yearText, now = new Date()) {
   const month = Number(monthText);
   const day = Number(dayText);
@@ -2369,8 +2567,19 @@ function parseBuyerSignals(row) {
 }
 
 function rowBelongsToCatalog(row, catalog) {
-  const number = Number(String(row?.boxId ?? "").trim());
-  return Number.isInteger(number) && number >= catalog.from && number <= catalog.to;
+  const raw = String(row?.boxId ?? "").trim();
+  const number = Number(raw);
+  const hasNumericId = /^\d+$/.test(raw) && Number.isInteger(number);
+
+  if (hasNumericId) {
+    return number >= catalog.from && number <= catalog.to;
+  }
+
+  return Boolean(catalog.includeUnknown);
+}
+
+function getCatalogForRow(row) {
+  return CATEGORY_ORDER.map((key) => CATALOGS[key]).find((catalog) => rowBelongsToCatalog(row, catalog)) || null;
 }
 
 function getNextAvailableBoxId(catalog, rows) {
