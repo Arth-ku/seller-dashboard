@@ -1,0 +1,12 @@
+[Unit]
+Description=Import Seller Dashboard CSV from Google Sheet
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/home/lwarm/apps/seller-dashboard/data
+
+[Service]
+Type=oneshot
+User=lwarm
+WorkingDirectory=/home/lwarm/apps/seller-dashboard
+EnvironmentFile=-/etc/seller-dashboard/app.env
+ExecStart=/home/lwarm/apps/seller-dashboard/scripts/import-google-sheet-csv.py

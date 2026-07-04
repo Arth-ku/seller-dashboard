@@ -77,6 +77,47 @@ export async function loadAppState() {
   return { ...cachedState };
 }
 
+export async function loadHistorySnapshots() {
+  const response = await fetch(toApiUrl("/api/history"), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load dashboard history.");
+  }
+
+  const payload = await response.json();
+  return Array.isArray(payload.snapshots) ? payload.snapshots : [];
+}
+
+export async function loadHistoryState(snapshotId) {
+  const response = await fetch(toApiUrl(`/api/history/state?id=${encodeURIComponent(snapshotId)}`), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load selected dashboard history.");
+  }
+
+  return response.json();
+}
+
 export async function loadHealth() {
   const response = await fetch(toApiUrl("/api/health"), {
     headers: {
@@ -91,21 +132,21 @@ export async function loadHealth() {
   return response.json();
 }
 
-export async function saveRows(rows) {
-  await saveAppState({ rows });
+export async function saveRows(rows, options = {}) {
+  await saveAppState({ rows }, options);
 }
 
-export async function saveProductDetails(productDetails) {
-  await saveAppState({ productDetails });
+export async function saveProductDetails(productDetails, options = {}) {
+  await saveAppState({ productDetails }, options);
 }
 
-export async function saveMeta(meta) {
-  await saveAppState({ meta });
+export async function saveMeta(meta, options = {}) {
+  await saveAppState({ meta }, options);
 }
 
-export async function saveAppState(partialState) {
+export async function saveAppState(partialState, options = {}) {
   cachedState = { ...cachedState, ...partialState };
-  await persistState();
+  await persistState(options);
 }
 
 export async function uploadImages(boxId, files) {
@@ -125,8 +166,11 @@ export async function uploadImages(boxId, files) {
   return Array.isArray(payload.images) ? payload.images : [];
 }
 
-async function persistState() {
-  const snapshot = JSON.stringify(cachedState);
+async function persistState(options = {}) {
+  const snapshot = JSON.stringify({
+    ...cachedState,
+    saveReason: options.reason || "save",
+  });
   persistQueue = persistQueue.then(() => persistSnapshot(snapshot), () => persistSnapshot(snapshot));
   return persistQueue;
 }

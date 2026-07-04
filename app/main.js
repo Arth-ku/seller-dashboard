@@ -11,6 +11,8 @@ import {
 import {
   fetchSession,
   loadAppState,
+  loadHistorySnapshots,
+  loadHistoryState,
   loadHealth,
   login,
   logout,
@@ -30,15 +32,33 @@ const DASHBOARD_COLUMNS = COLUMN_DEFS.filter(({ key }) =>
 const MAX_IMAGES_PER_PRODUCT = 30;
 const HEALTH_REFRESH_MS = 15000;
 const IMPORT_PASSWORD = "wSS2008!";
+const STALE_LISTING_DAYS = 150;
 
-// Admin catalog views. Ranges mirror CATALOGS in server.py. These are admin-only pages
-// inside the dashboard (/sell/hvac, /sell/apparel) that show EVERY item in the range,
-// including hidden ones. The public catalog pages on authenticitycheck.net are separate
-// and still exclude hidden items.
+// Admin category views. These pages show every matching item, including hidden ones.
+// Public catalog pages on authenticitycheck.net remain separate for HVAC/Apparel.
 const CATALOGS = {
-  apparel: { label: "Apparel", from: 1000, to: 1100 },
-  hvac: { label: "HVAC", from: 700, to: 800 },
+  units: {
+    label: "Units",
+    from: 1,
+    to: 699,
+    description: "General inventory units before the HVAC range.",
+  },
+  hvac: {
+    label: "HVAC",
+    from: 700,
+    to: 800,
+    description: "HVAC systems, AC units, dehumidifiers, and related equipment.",
+    publicPath: "/hvac",
+  },
+  apparel: {
+    label: "Apparel",
+    from: 1000,
+    to: 1100,
+    description: "Designer and apparel inventory.",
+    publicPath: "/apparel",
+  },
 };
+const CATEGORY_ORDER = ["units", "hvac", "apparel"];
 
 const state = {
   rows: [],
@@ -51,6 +71,8 @@ const state = {
   session: { authenticated: false, authRequired: false },
   loginError: "",
   catalogSearch: "",
+  historySnapshots: [],
+  viewingSnapshot: null,
 };
 let healthRefreshTimer = null;
 
@@ -104,9 +126,12 @@ async function loadAndRender() {
     state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
     state.productDetails = stored.productDetails;
     state.meta = stored.meta;
+    state.viewingSnapshot = null;
+    state.historySnapshots = await loadHistorySnapshots();
 
     if ((stored.rows || []).length !== state.rows.length) {
       await saveRows(state.rows);
+      state.historySnapshots = await loadHistorySnapshots();
     }
 
     render();
@@ -117,6 +142,26 @@ async function loadAndRender() {
       return;
     }
     throw error;
+  }
+}
+
+async function loadSnapshotAndRender(snapshotId) {
+  try {
+    const stored = await loadHistoryState(snapshotId);
+    state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
+    state.productDetails =
+      stored.productDetails && typeof stored.productDetails === "object" ? stored.productDetails : {};
+    state.meta = stored.meta && typeof stored.meta === "object" ? stored.meta : {};
+    state.viewingSnapshot = stored.snapshot || null;
+    setSaveMessage(
+      state.viewingSnapshot
+        ? `Viewing saved dashboard from ${formatDateTime(state.viewingSnapshot.createdAt)}.`
+        : "Viewing saved dashboard history.",
+    );
+    render();
+  } catch (error) {
+    setSaveMessage(error?.message || "Could not load selected dashboard history.");
+    render();
   }
 }
 
@@ -340,11 +385,9 @@ function renderCatalogPage(catalogName) {
   }
 
   const term = state.catalogSearch.trim().toLowerCase();
+  const historyMode = isHistoryMode();
   const items = (Array.isArray(state.rows) ? state.rows : [])
-    .filter((row) => {
-      const number = Number(String(row?.boxId ?? "").trim());
-      return Number.isInteger(number) && number >= catalog.from && number <= catalog.to;
-    })
+    .filter((row) => rowBelongsToCatalog(row, catalog))
     .filter((row) => {
       if (!term) {
         return true;
@@ -358,6 +401,10 @@ function renderCatalogPage(catalogName) {
     .sort((left, right) => compareBoxIds(left.boxId, right.boxId, "asc"));
 
   const hiddenCount = items.filter((row) => row.hidden).length;
+  const archivedCount = items.filter((row) => row.archived).length;
+  const presentCount = items.length - archivedCount;
+  const liveItems = items.filter((row) => !row.archived);
+  const archivedItems = items.filter((row) => row.archived);
 
   const main = document.createElement("main");
   main.className = "shell";
@@ -366,28 +413,34 @@ function renderCatalogPage(catalogName) {
       <div class="detail-header">
         <div>
           <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
-          <p class="eyebrow">Admin Catalog</p>
+          <p class="eyebrow">Inventory Category</p>
           <h1>${escapeHtml(catalog.label)}</h1>
-          <p class="detail-subtitle">Box IDs ${catalog.from}–${catalog.to}. Shows every item including hidden ones. The public ${escapeHtml(catalog.label)} page hides the hidden ones.</p>
+          <p class="detail-subtitle">Box IDs ${catalog.from}–${catalog.to}. ${escapeHtml(catalog.description || "Shows every matching item including hidden ones.")}</p>
         </div>
         <div class="detail-meta">
           <span class="detail-pill">${items.length} item${items.length === 1 ? "" : "s"}</span>
+          <span class="detail-pill">${presentCount} present</span>
+          <span class="detail-pill">${archivedCount} archived</span>
           <span class="detail-pill ${hiddenCount ? "pill-hidden" : "pill-public"}">${hiddenCount} hidden</span>
-          <a class="detail-pill pill-link" href="/${encodeURIComponent(catalogName)}" target="_blank" rel="noopener">Open public page ↗</a>
+          ${catalog.publicPath ? `<a class="detail-pill pill-link" href="${escapeAttribute(catalog.publicPath)}" target="_blank" rel="noopener">Open public page ↗</a>` : ""}
         </div>
       </div>
+
+      ${renderCatalogAnalytics(items)}
 
       <div class="catalog-toolbar">
         <label class="search-field">
           <span>Search ${escapeHtml(catalog.label)}</span>
           <input id="catalog-search" type="search" value="${escapeAttribute(state.catalogSearch)}" placeholder="Box ID, name, price..." />
         </label>
-        <button id="catalog-add" class="button primary" type="button">Add ${escapeHtml(catalog.label)} item</button>
+        <button id="catalog-add" class="button primary" type="button" ${historyMode ? "disabled" : ""}>Add ${escapeHtml(catalog.label)} item</button>
       </div>
 
       ${
         items.length
-          ? `<div class="catalog-grid">${items.map(catalogCard).join("")}</div>`
+          ? `${renderBusinessPriorityBoard(items)}
+             ${renderCatalogSection("Present / active listings", liveItems, "Items currently for sale. Work these before looking at sold history.", "present")}
+             ${renderCatalogSection("Archived / sold history", archivedItems, "Sold items kept for channel, price, speed, and ad analysis.", "archived")}`
           : `<div class="empty-state"><h2>No items in this range yet</h2><p>Items with a Box ID from ${catalog.from} to ${catalog.to} will appear here.</p></div>`
       }
     </section>
@@ -397,7 +450,27 @@ function renderCatalogPage(catalogName) {
   bindCatalogEvents(catalogName);
 }
 
+function renderCatalogSection(title, rows, description, kind) {
+  return `
+    <section class="catalog-section catalog-section-${escapeAttribute(kind)}">
+      <div class="catalog-section-heading">
+        <div>
+          <h2>${escapeHtml(title)}</h2>
+          <p>${escapeHtml(description)}</p>
+        </div>
+        <span class="detail-pill">${rows.length} item${rows.length === 1 ? "" : "s"}</span>
+      </div>
+      ${
+        rows.length
+          ? `<div class="catalog-grid">${rows.map(catalogCard).join("")}</div>`
+          : `<div class="empty-state compact-empty"><h2>No ${escapeHtml(title.toLowerCase())}</h2></div>`
+      }
+    </section>
+  `;
+}
+
 function catalogCard(row) {
+  const historyMode = isHistoryMode();
   const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
   const image = detail.images && detail.images[0];
   const title =
@@ -426,7 +499,7 @@ function catalogCard(row) {
         <p class="catalog-card-price">${escapeHtml(price)}</p>
         <div class="catalog-card-actions">
           <label class="checkbox-wrap">
-            <input type="checkbox" data-catalog-hidden="${escapeAttribute(row.boxId)}" ${row.hidden ? "checked" : ""} />
+            <input type="checkbox" data-catalog-hidden="${escapeAttribute(row.boxId)}" ${row.hidden ? "checked" : ""} ${historyMode ? "disabled" : ""} />
             <span>${row.hidden ? "Hidden" : "Public"}</span>
           </label>
           <a class="button-link" data-route href="${productHref}">Edit</a>
@@ -440,16 +513,13 @@ function bindCatalogEvents(catalogName) {
   const catalog = CATALOGS[catalogName];
 
   document.querySelector("#catalog-add")?.addEventListener("click", async () => {
-    const used = new Set(
-      state.rows.map((row) => String(row?.boxId ?? "").trim()).filter(Boolean),
-    );
-    let nextId = null;
-    for (let number = catalog.from; number <= catalog.to; number += 1) {
-      if (!used.has(String(number))) {
-        nextId = String(number);
-        break;
-      }
+    if (isHistoryMode()) {
+      setSaveMessage("Return to current before adding catalog items.");
+      render();
+      return;
     }
+
+    const nextId = getNextAvailableBoxId(catalog, state.rows);
 
     if (!nextId) {
       setSaveMessage(`${catalog.label} range ${catalog.from}–${catalog.to} is full — no free Box ID.`);
@@ -462,6 +532,7 @@ function bindCatalogEvents(catalogName) {
     row.isDraft = true;
     state.rows = [row, ...state.rows];
     await saveRows(state.rows);
+    state.historySnapshots = await loadHistorySnapshots();
     setSaveMessage(`Added ${catalog.label} item ${nextId}. Add photos and details below.`);
     navigate(`/${encodeURIComponent(nextId)}`);
   });
@@ -483,12 +554,19 @@ function bindCatalogEvents(catalogName) {
   document.querySelectorAll("[data-catalog-hidden]").forEach((input) => {
     input.addEventListener("change", async (event) => {
       const boxId = event.target.dataset.catalogHidden;
+      if (isHistoryMode()) {
+        setSaveMessage("Historical snapshots are read-only.");
+        render();
+        return;
+      }
+
       const row = state.rows.find((entry) => entry.boxId === boxId);
       if (!row) {
         return;
       }
       row.hidden = event.target.checked;
       await saveRows(state.rows);
+      state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`${row.hidden ? "Hid" : "Unhid"} ${boxId} from public view.`);
       render();
     });
@@ -499,40 +577,28 @@ function renderDashboard() {
   const main = document.createElement("main");
   main.className = "shell";
 
+  const historyMode = isHistoryMode();
   const rows = pruneRows((Array.isArray(state.rows) ? state.rows : []).map(normalizeRowState));
-
-  const visibleRows = rows
-    .filter((row) => {
-      if (!row || typeof row !== "object") {
-        return false;
-      }
-
-      if (state.archiveFilter === "archived" && !row.archived) {
-        return false;
-      }
-
-      if (state.archiveFilter === "present" && row.archived) {
-        return false;
-      }
-
-      const term = state.search.trim().toLowerCase();
-      if (!term) {
-        return true;
-      }
-
-      return [row.boxId, row.itemName, row.notes, row.buyerDescription, row.soldThrough]
-        .join(" ")
-        .toLowerCase()
-        .includes(term);
-    })
-    .sort((left, right) => compareBoxIds(left.boxId, right.boxId, state.boxSort));
-
   const summary = buildSummary(rows);
+  const categorySummaries = CATEGORY_ORDER.map((key) => buildCategorySummary(key, rows));
+  const categorizedIds = new Set(categorySummaries.flatMap((entry) => entry.rows.map((row) => row.id)));
+  const uncategorizedCount = rows.filter((row) => !categorizedIds.has(row.id)).length;
   const lastImport = state.meta.lastImportAt
     ? new Date(state.meta.lastImportAt).toLocaleString()
     : "No CSV imported yet";
+  const selectedHistoryValue = historyMode ? String(state.viewingSnapshot.id) : "current";
 
   main.innerHTML = `
+    ${
+      historyMode
+        ? `<section class="history-banner">
+            <strong>Historical view</strong>
+            <span>Showing ${escapeHtml(formatDateTime(state.viewingSnapshot.createdAt))}. Editing is disabled until you return to current.</span>
+            <button id="history-current-button" class="button secondary" type="button">Back to current</button>
+          </section>`
+        : ""
+    }
+
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Seller Dashboard</p>
@@ -566,34 +632,30 @@ function renderDashboard() {
       <div class="toolbar">
         <div class="toolbar-actions">
           <label class="button primary file-button">
-            <input id="csv-input" type="file" accept=".csv,text/csv" />
+            <input id="csv-input" type="file" accept=".csv,text/csv" ${historyMode ? "disabled" : ""} />
             Import CSV
           </label>
-          <button id="add-row-button" class="button secondary" type="button">Add Row</button>
           <button id="export-button" class="button ghost" type="button">Export CSV</button>
+          <a class="button ghost" data-route href="${appPath("/units")}">Units</a>
           <a class="button ghost" data-route href="${appPath("/hvac")}">HVAC</a>
           <a class="button ghost" data-route href="${appPath("/apparel")}">Apparel</a>
           <a class="button ghost" data-route href="${appPath("/health")}">Health</a>
           ${state.session.authRequired ? `<button id="sign-out-button" class="button ghost" type="button">Sign out</button>` : ""}
         </div>
         <div class="toolbar-filters">
-          <label class="search-field">
-            <span>Search</span>
-            <input id="search-input" type="search" value="${escapeAttribute(state.search)}" placeholder="Box ID or item name..." />
-          </label>
-          <label class="search-field compact-field">
-            <span>Archive</span>
-            <select id="archive-filter">
-              <option value="all" ${state.archiveFilter === "all" ? "selected" : ""}>All</option>
-              <option value="present" ${state.archiveFilter === "present" ? "selected" : ""}>False / Present</option>
-              <option value="archived" ${state.archiveFilter === "archived" ? "selected" : ""}>True / Archive</option>
-            </select>
-          </label>
-          <label class="search-field compact-field">
-            <span>Sort by Box ID</span>
-            <select id="box-sort">
-              <option value="asc" ${state.boxSort === "asc" ? "selected" : ""}>Ascending</option>
-              <option value="desc" ${state.boxSort === "desc" ? "selected" : ""}>Descending</option>
+          <label class="search-field history-field">
+            <span>Playback</span>
+            <select id="history-select">
+              <option value="current" ${selectedHistoryValue === "current" ? "selected" : ""}>Current live dashboard</option>
+              ${state.historySnapshots
+                .map(
+                  (snapshot) => `
+                    <option value="${escapeAttribute(snapshot.id)}" ${selectedHistoryValue === String(snapshot.id) ? "selected" : ""}>
+                      ${escapeHtml(formatSnapshotOption(snapshot))}
+                    </option>
+                  `,
+                )
+                .join("")}
             </select>
           </label>
         </div>
@@ -601,26 +663,27 @@ function renderDashboard() {
 
       <div class="status-row">
         <p><strong>Last import:</strong> ${escapeHtml(lastImport)}</p>
-        <p>${escapeHtml(state.saveMessage || "Inline row edits save automatically on the server.")}</p>
+        <p>${escapeHtml(state.saveMessage || (historyMode ? "Historical snapshots are read-only." : "Inline row edits save automatically on the server."))}</p>
       </div>
     </section>
   `;
 
-  const tablePanel = document.createElement("section");
-  tablePanel.className = "panel table-panel";
-
-  if (!visibleRows.length) {
-    tablePanel.innerHTML = `
-      <div class="empty-state">
-        <h2>No rows to show</h2>
-        <p>Try changing the archive filter, search, or import your CSV again.</p>
+  const categoryPanel = document.createElement("section");
+  categoryPanel.className = "panel category-panel";
+  categoryPanel.innerHTML = `
+    <div class="category-panel-heading">
+      <div>
+        <h2>Inventory categories</h2>
+        <p>Open one category at a time instead of working from one mixed list.</p>
       </div>
-    `;
-  } else {
-    tablePanel.append(buildTable(visibleRows));
-  }
+      ${uncategorizedCount ? `<span class="detail-pill pill-hidden">${uncategorizedCount} uncategorized</span>` : ""}
+    </div>
+    <div class="category-grid">
+      ${categorySummaries.map(categoryCard).join("")}
+    </div>
+  `;
 
-  main.append(tablePanel);
+  main.append(categoryPanel);
   app.append(main);
 
   bindDashboardEvents();
@@ -630,12 +693,22 @@ function renderProductDetail(boxId) {
   const main = document.createElement("main");
   main.className = "shell";
 
+  const historyMode = isHistoryMode();
   const row = state.rows.find((entry) => entry.boxId === boxId);
   const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
   const imageCountText = `${detail.images.length}/${MAX_IMAGES_PER_PRODUCT} images uploaded`;
 
   main.innerHTML = `
     <section class="panel detail-panel">
+      ${
+        historyMode
+          ? `<div class="history-banner inline-history-banner">
+              <strong>Historical view</strong>
+              <span>Showing ${escapeHtml(formatDateTime(state.viewingSnapshot.createdAt))}. Product editing and uploads are disabled.</span>
+              <button id="history-current-button" class="button secondary" type="button">Back to current</button>
+            </div>`
+          : ""
+      }
       <div class="detail-header">
         <div>
           <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
@@ -658,7 +731,7 @@ function renderProductDetail(boxId) {
         row
           ? `<div class="visibility-bar">
               <label class="checkbox-wrap">
-                <input id="detail-hidden" type="checkbox" ${row.hidden ? "checked" : ""} />
+                <input id="detail-hidden" type="checkbox" ${row.hidden ? "checked" : ""} ${historyMode ? "disabled" : ""} />
                 <span>Hide this item from the public authenticity page</span>
               </label>
               <p class="muted-text">When hidden, the public authenticity page and API return "not found". You still see and edit it here.</p>
@@ -674,7 +747,7 @@ function renderProductDetail(boxId) {
               <p>${escapeHtml(imageCountText)}</p>
             </div>
             <label class="upload-zone">
-              <input id="image-input" type="file" accept=".webp,.jpg,.jpeg,.png,.gif,.avif,.bmp,.svg,.heic,.heif,image/webp,image/jpeg,image/png,image/gif,image/avif,image/bmp,image/svg+xml,image/heic,image/heif" multiple />
+              <input id="image-input" type="file" accept=".webp,.jpg,.jpeg,.png,.gif,.avif,.bmp,.svg,.heic,.heif,image/webp,image/jpeg,image/png,image/gif,image/avif,image/bmp,image/svg+xml,image/heic,image/heif" multiple ${historyMode ? "disabled" : ""} />
               <span>Upload up to ${MAX_IMAGES_PER_PRODUCT} images</span>
               <small>Photos are stored on the server so every device can see them. Supports webp, jpg, jpeg, png, gif, avif, bmp, svg, heic, and heif.</small>
             </label>
@@ -684,13 +757,13 @@ function renderProductDetail(boxId) {
                   ? detail.images
                       .map(
                         (image, index) => `
-                          <figure class="image-card draggable-image-card" draggable="true" data-drag-image="${index}">
+                          <figure class="image-card draggable-image-card" draggable="${historyMode ? "false" : "true"}" data-drag-image="${index}">
                             <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" draggable="false" />
                             <figcaption>
                               <span class="image-name">${escapeHtml(image.name || `Image ${index + 1}`)}</span>
                               <div class="image-actions">
-                                <span class="drag-hint">Drag to reorder</span>
-                                <button class="button-link" type="button" data-remove-image="${index}">Remove</button>
+                                ${historyMode ? "" : `<span class="drag-hint">Drag to reorder</span>`}
+                                ${historyMode ? "" : `<button class="button-link" type="button" data-remove-image="${index}">Remove</button>`}
                               </div>
                             </figcaption>
                           </figure>
@@ -711,14 +784,14 @@ function renderProductDetail(boxId) {
             </div>
             <label class="field">
               <span>Title</span>
-              <input id="detail-title" type="text" value="${escapeAttribute(detail.title)}" placeholder="Write a listing title" />
+              <input id="detail-title" type="text" value="${escapeAttribute(detail.title)}" placeholder="Write a listing title" ${historyMode ? "disabled" : ""} />
             </label>
             <label class="field">
               <span>Description</span>
-              <textarea id="detail-description" rows="10" placeholder="Write the item description">${escapeHtml(detail.description)}</textarea>
+              <textarea id="detail-description" rows="10" placeholder="Write the item description" ${historyMode ? "disabled" : ""}>${escapeHtml(detail.description)}</textarea>
             </label>
             <div class="button-row">
-              <button id="save-detail-button" class="button primary" type="button">Save Details</button>
+              <button id="save-detail-button" class="button primary" type="button" ${historyMode ? "disabled" : ""}>Save Details</button>
               <span class="muted-text">${escapeHtml(detail.updatedAt ? `Last saved ${new Date(detail.updatedAt).toLocaleString()}` : "Not saved yet")}</span>
             </div>
           </section>
@@ -826,6 +899,7 @@ function renderAuthenticityPage(boxId) {
 }
 
 function buildTable(rows) {
+  const historyMode = isHistoryMode();
   const wrapper = document.createElement("div");
   wrapper.className = "table-wrapper";
 
@@ -867,6 +941,7 @@ function buildTable(rows) {
               data-row-id="${row.id}"
               value="${escapeAttribute(row.boxId)}"
               type="text"
+              ${historyMode ? "disabled" : ""}
             />
           </div>
         `;
@@ -879,8 +954,9 @@ function buildTable(rows) {
               data-row-id="${row.id}"
               value="${escapeAttribute(row.itemName)}"
               type="text"
+              ${historyMode ? "disabled" : ""}
             />
-            <div class="row-actions">
+            <div class="row-actions ${historyMode ? "is-hidden" : ""}">
               <button
                 class="button-link delete-row-button"
                 type="button"
@@ -899,6 +975,7 @@ function buildTable(rows) {
               data-row-id="${row.id}"
               type="checkbox"
               ${row[column.key] ? "checked" : ""}
+              ${historyMode ? "disabled" : ""}
             />
             <span>${row[column.key] ? "TRUE" : "FALSE"}</span>
           </label>
@@ -910,6 +987,7 @@ function buildTable(rows) {
             data-row-id="${row.id}"
             value="${escapeAttribute(row[column.key] || "")}"
             type="text"
+            ${historyMode ? "disabled" : ""}
           />
         `;
       }
@@ -933,12 +1011,34 @@ function bindDashboardEvents() {
   const archiveFilter = document.querySelector("#archive-filter");
   const boxSort = document.querySelector("#box-sort");
   const signOutButton = document.querySelector("#sign-out-button");
+  const historySelect = document.querySelector("#history-select");
+  const historyCurrentButton = document.querySelector("#history-current-button");
 
   signOutButton?.addEventListener("click", () => {
     handleSignOut();
   });
 
+  historySelect?.addEventListener("change", async (event) => {
+    const value = event.target.value;
+    if (value === "current") {
+      await loadAndRender();
+      return;
+    }
+    await loadSnapshotAndRender(value);
+  });
+
+  historyCurrentButton?.addEventListener("click", async () => {
+    await loadAndRender();
+  });
+
   csvInput?.addEventListener("change", async (event) => {
+    if (isHistoryMode()) {
+      event.target.value = "";
+      setSaveMessage("Return to current before importing a CSV.");
+      render();
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -964,7 +1064,11 @@ function bindDashboardEvents() {
         lastImportName: file.name,
       };
 
-      await saveAppState({ rows: state.rows, productDetails: state.productDetails, meta: state.meta });
+      await saveAppState(
+        { rows: state.rows, productDetails: state.productDetails, meta: state.meta },
+        { reason: "csv-import" },
+      );
+      state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`Imported ${importedRows.length} row(s) from ${file.name}.`);
       render();
     } finally {
@@ -973,8 +1077,15 @@ function bindDashboardEvents() {
   });
 
   addRowButton?.addEventListener("click", async () => {
+    if (isHistoryMode()) {
+      setSaveMessage("Return to current before adding rows.");
+      render();
+      return;
+    }
+
     state.rows = [createEmptyRow(state.rows), ...state.rows];
     await saveRows(state.rows);
+    state.historySnapshots = await loadHistorySnapshots();
     setSaveMessage("New row added.");
     render();
   });
@@ -1019,7 +1130,7 @@ function bindDashboardEvents() {
     link.download = "seller-dashboard-export.csv";
     link.click();
     URL.revokeObjectURL(url);
-    setSaveMessage("Current dashboard exported as CSV.");
+    setSaveMessage(isHistoryMode() ? "Historical dashboard exported as CSV." : "Current dashboard exported as CSV.");
     render();
   });
 
@@ -1027,6 +1138,12 @@ function bindDashboardEvents() {
     const eventName = input.type === "checkbox" ? "change" : "change";
     input.addEventListener(eventName, async (event) => {
       const rowId = event.target.dataset.rowId;
+      if (isHistoryMode()) {
+        setSaveMessage("Historical snapshots are read-only.");
+        render();
+        return;
+      }
+
       const field = event.target.dataset.rowField;
       const row = state.rows.find((entry) => entry.id === rowId);
 
@@ -1057,6 +1174,7 @@ function bindDashboardEvents() {
       Object.assign(row, normalizeRowState(row));
       state.rows = pruneRows(state.rows.map(normalizeRowState));
       await saveAppState({ rows: state.rows, productDetails: state.productDetails });
+      state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`Saved changes for ${row.boxId}.`);
       render();
     });
@@ -1065,6 +1183,12 @@ function bindDashboardEvents() {
   document.querySelectorAll("[data-delete-row]").forEach((button) => {
     button.addEventListener("click", async (event) => {
       const rowId = event.currentTarget.dataset.deleteRow;
+      if (isHistoryMode()) {
+        setSaveMessage("Historical snapshots are read-only.");
+        render();
+        return;
+      }
+
       const row = state.rows.find((entry) => entry.id === rowId);
 
       if (!row) {
@@ -1085,6 +1209,7 @@ function bindDashboardEvents() {
       }
 
       await saveAppState({ rows: state.rows, productDetails: state.productDetails });
+      state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`Deleted ${row.boxId}.`);
       render();
     });
@@ -1092,7 +1217,17 @@ function bindDashboardEvents() {
 }
 
 function bindDetailEvents(boxId) {
+  document.querySelector("#history-current-button")?.addEventListener("click", async () => {
+    await loadAndRender();
+  });
+
   document.querySelector("#detail-hidden")?.addEventListener("change", async (event) => {
+    if (isHistoryMode()) {
+      setSaveMessage("Historical snapshots are read-only.");
+      render();
+      return;
+    }
+
     const row = state.rows.find((entry) => entry.boxId === boxId);
     if (!row) {
       return;
@@ -1100,19 +1235,34 @@ function bindDetailEvents(boxId) {
 
     row.hidden = event.target.checked;
     await saveRows(state.rows);
+    state.historySnapshots = await loadHistorySnapshots();
     setSaveMessage(`${row.hidden ? "Hid" : "Unhid"} ${boxId} from public view.`);
     render();
   });
 
   document.querySelector("#save-detail-button")?.addEventListener("click", async () => {
+    if (isHistoryMode()) {
+      setSaveMessage("Historical snapshots are read-only.");
+      render();
+      return;
+    }
+
     const current = collectDetailDraft(boxId);
     current.updatedAt = new Date().toISOString();
     state.productDetails[boxId] = current;
     await saveProductDetails(state.productDetails);
+    state.historySnapshots = await loadHistorySnapshots();
     render();
   });
 
   document.querySelector("#image-input")?.addEventListener("change", async (event) => {
+    if (isHistoryMode()) {
+      event.target.value = "";
+      setSaveMessage("Return to current before uploading images.");
+      render();
+      return;
+    }
+
     const files = Array.from(event.target.files || []);
     if (!files.length) {
       return;
@@ -1139,24 +1289,36 @@ function bindDetailEvents(boxId) {
     draft.updatedAt = new Date().toISOString();
     state.productDetails[boxId] = draft;
     await saveProductDetails(state.productDetails);
+    state.historySnapshots = await loadHistorySnapshots();
     event.target.value = "";
     render();
   });
 
   document.querySelectorAll("[data-remove-image]").forEach((button) => {
     button.addEventListener("click", async (event) => {
+      if (isHistoryMode()) {
+        setSaveMessage("Historical snapshots are read-only.");
+        render();
+        return;
+      }
+
       const index = Number(event.currentTarget.dataset.removeImage);
       const current = collectDetailDraft(boxId);
       current.images = current.images.filter((_, imageIndex) => imageIndex !== index);
       current.updatedAt = new Date().toISOString();
       state.productDetails[boxId] = current;
       await saveProductDetails(state.productDetails);
+      state.historySnapshots = await loadHistorySnapshots();
       render();
     });
   });
 
   let draggingIndex = null;
   document.querySelectorAll("[data-drag-image]").forEach((card) => {
+    if (isHistoryMode()) {
+      return;
+    }
+
     card.addEventListener("dragstart", (event) => {
       draggingIndex = Number(event.currentTarget.dataset.dragImage);
       event.dataTransfer.effectAllowed = "move";
@@ -1197,6 +1359,7 @@ function bindDetailEvents(boxId) {
       current.updatedAt = new Date().toISOString();
       state.productDetails[boxId] = current;
       await saveProductDetails(state.productDetails);
+      state.historySnapshots = await loadHistorySnapshots();
       render();
     });
   });
@@ -1409,6 +1572,817 @@ function buildSummary(rows) {
   );
 }
 
+function buildCategorySummary(catalogName, rows) {
+  const catalog = CATALOGS[catalogName];
+  const categoryRows = rows
+    .filter((row) => rowBelongsToCatalog(row, catalog))
+    .sort((left, right) => compareBoxIds(left.boxId, right.boxId, "asc"));
+  const archivedRows = categoryRows.filter((row) => row.archived).length;
+  const hiddenRows = categoryRows.filter((row) => row.hidden).length;
+  const listedValue = categoryRows.reduce((total, row) => total + parseCurrency(row.priceListed), 0);
+
+  return {
+    key: catalogName,
+    catalog,
+    rows: categoryRows,
+    totalRows: categoryRows.length,
+    presentRows: categoryRows.length - archivedRows,
+    archivedRows,
+    hiddenRows,
+    listedValue,
+    nextBoxId: getNextAvailableBoxId(catalog, rows),
+  };
+}
+
+function categoryCard(summary) {
+  const { key, catalog } = summary;
+  return `
+    <article class="category-card">
+      <div class="category-card-main">
+        <p class="category-range">Box IDs ${catalog.from}-${catalog.to}</p>
+        <h3>${escapeHtml(catalog.label)}</h3>
+        <p>${escapeHtml(catalog.description || "")}</p>
+      </div>
+      <dl class="category-stats">
+        <div>
+          <dt>Total</dt>
+          <dd>${summary.totalRows}</dd>
+        </div>
+        <div>
+          <dt>Present</dt>
+          <dd>${summary.presentRows}</dd>
+        </div>
+        <div>
+          <dt>Archived</dt>
+          <dd>${summary.archivedRows}</dd>
+        </div>
+        <div>
+          <dt>Hidden</dt>
+          <dd>${summary.hiddenRows}</dd>
+        </div>
+      </dl>
+      <div class="category-card-footer">
+        <span>${escapeHtml(currencyFormatter.format(summary.listedValue))} listed</span>
+        <span>${summary.nextBoxId ? `Next ${escapeHtml(summary.nextBoxId)}` : "Range full"}</span>
+      </div>
+      <a class="button primary category-open-button" data-route href="${appPath(`/${encodeURIComponent(key)}`)}">Open ${escapeHtml(catalog.label)}</a>
+    </article>
+  `;
+}
+
+function renderCatalogAnalytics(items) {
+  const analytics = buildCatalogAnalytics(items);
+  const live = analytics.live;
+  const sold = analytics.sold;
+
+  return `
+    <div class="analysis-grid">
+      <section class="analysis-card">
+        <div class="analysis-heading">
+          <div>
+            <h2>Live action</h2>
+            <p>Active listings that may need price, ad, or tracking work.</p>
+          </div>
+          <span class="detail-pill ${live.staleCount ? "pill-hidden" : "pill-public"}">${live.staleCount} stale</span>
+        </div>
+        <div class="analysis-metrics">
+          ${analysisMetric("Active", live.count)}
+          ${analysisMetric("Listed value", currencyFormatter.format(live.listedValue))}
+          ${analysisMetric("Revised price", live.revisedCount)}
+          ${analysisMetric("Boost notes", live.boostedCount)}
+          ${analysisMetric(`${STALE_LISTING_DAYS}+ days`, live.staleCount)}
+          ${analysisMetric("No date signal", live.noDateCount)}
+        </div>
+        ${
+          live.actionRows.length
+            ? `<div class="analysis-list">
+                <h3>Needs attention</h3>
+                ${live.actionRows.map(actionRowItem).join("")}
+              </div>`
+            : `<p class="analysis-empty">No active listings are over ${STALE_LISTING_DAYS} days from the latest tracking signal.</p>`
+        }
+      </section>
+
+      <section class="analysis-card">
+        <div class="analysis-heading">
+          <div>
+            <h2>Sold analysis</h2>
+            <p>Archived items by channel, price, expense, and ad notes.</p>
+          </div>
+          <span class="detail-pill">${sold.count} sold</span>
+        </div>
+        <div class="analysis-metrics">
+          ${analysisMetric("Revenue", currencyFormatter.format(sold.revenue))}
+          ${analysisMetric("Net est.", currencyFormatter.format(sold.estimatedNet))}
+          ${analysisMetric("Avg sale", currencyFormatter.format(sold.averageSale))}
+          ${analysisMetric("Discount", currencyFormatter.format(sold.discount))}
+          ${analysisMetric("Self expense", currencyFormatter.format(sold.selfExpense))}
+          ${analysisMetric("Ad notes est.", currencyFormatter.format(sold.adSpend))}
+        </div>
+        <div class="analysis-split">
+          <div class="analysis-list">
+            <h3>Sold through</h3>
+            ${
+              sold.channels.length
+                ? sold.channels.map(channelRow).join("")
+                : `<p class="analysis-empty">No sold channel data yet.</p>`
+            }
+          </div>
+          <div class="analysis-list">
+            <h3>Buyer / delivery</h3>
+            ${dataQualityRow("Delivery sales", sold.deliveryCount)}
+            ${dataQualityRow("Avg delivery min", sold.averageDeliveryMinutes ? Math.round(sold.averageDeliveryMinutes) : 0)}
+            ${dataQualityRow("Cash payments", sold.cashCount)}
+            ${dataQualityRow("Zelle payments", sold.zelleCount)}
+          </div>
+          <div class="analysis-list">
+            <h3>Data cleanup</h3>
+            ${dataQualityRow("Missing final price", sold.missingFinalPrice)}
+            ${dataQualityRow("Missing sold through", sold.missingSoldThrough)}
+            ${dataQualityRow("Missing sold day", sold.missingSoldDay)}
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderBusinessPriorityBoard(items) {
+  const liveScores = items
+    .filter((row) => !row.archived)
+    .map(scoreLiveItem)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 6);
+  const quickWins = items
+    .filter((row) => !row.archived)
+    .map(scoreLiveItem)
+    .filter((entry) => entry.quickWin)
+    .sort((left, right) => right.quickWinScore - left.quickWinScore)
+    .slice(0, 4);
+  const soldWinners = items
+    .filter((row) => row.archived)
+    .map(scoreSoldItem)
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 5);
+  const adLessons = items
+    .filter((row) => row.archived && hasBoostNotes(row))
+    .map(scoreSoldItem)
+    .sort((left, right) => right.adSignalScore - left.adSignalScore)
+    .slice(0, 5);
+
+  return `
+    <div class="business-board">
+      <section class="business-panel priority-panel">
+        <div class="business-panel-heading">
+          <h2>Unit health rank</h2>
+          <p>Highest scores are the active listings most likely to need action.</p>
+        </div>
+        ${liveScores.length ? liveScores.map(liveRankRow).join("") : `<p class="analysis-empty">No live items to rank.</p>`}
+      </section>
+
+      <section class="business-panel">
+        <div class="business-panel-heading">
+          <h2>Quick wins</h2>
+          <p>Items where a small listing, pricing, or ad move could help.</p>
+        </div>
+        ${quickWins.length ? quickWins.map(quickWinRow).join("") : `<p class="analysis-empty">No obvious quick wins found from current signals.</p>`}
+      </section>
+
+      <section class="business-panel">
+        <div class="business-panel-heading">
+          <h2>Sold winners</h2>
+          <p>Good products or marketing patterns to repeat.</p>
+        </div>
+        ${soldWinners.length ? soldWinners.map(soldWinnerRow).join("") : `<p class="analysis-empty">No sold winners can be ranked yet.</p>`}
+      </section>
+
+      <section class="business-panel">
+        <div class="business-panel-heading">
+          <h2>Ad lessons</h2>
+          <p>Boost notes compared with sale results.</p>
+        </div>
+        ${adLessons.length ? adLessons.map(adLessonRow).join("") : `<p class="analysis-empty">No archived items with boost notes yet.</p>`}
+      </section>
+    </div>
+  `;
+}
+
+function buildCatalogAnalytics(items) {
+  const liveRows = items.filter((row) => !row.archived);
+  const soldRows = items.filter((row) => row.archived);
+  const now = new Date();
+
+  const liveActionRows = liveRows
+    .map((row) => {
+      const listedDate = getFirstListedDate(row, now);
+      const ageDays = listedDate ? daysBetween(listedDate, now) : null;
+      const boostText = [row.boost, row.boost2].filter(Boolean).join(" | ");
+      return {
+        row,
+        ageDays,
+        trackingDate: listedDate,
+        boostText,
+        price: getActivePrice(row),
+        reason: ageDays == null ? "No listing date" : `${ageDays} days listed`,
+      };
+    })
+    .filter((entry) => entry.ageDays == null || entry.ageDays >= STALE_LISTING_DAYS)
+    .sort((left, right) => {
+      if (left.ageDays == null && right.ageDays == null) {
+        return compareBoxIds(left.row.boxId, right.row.boxId, "asc");
+      }
+      if (left.ageDays == null) {
+        return -1;
+      }
+      if (right.ageDays == null) {
+        return 1;
+      }
+      return right.ageDays - left.ageDays;
+    })
+    .slice(0, 6);
+
+  const soldWithFinalPrice = soldRows.filter((row) => parseCurrency(row.finalPrice) > 0);
+  const soldRevenue = soldRows.reduce((total, row) => total + parseCurrency(row.finalPrice), 0);
+  const soldListedValue = soldRows.reduce((total, row) => total + parseCurrency(row.priceListed), 0);
+  const selfExpense = soldRows.reduce((total, row) => total + parseExpenseCost(row.selfExpense), 0);
+  const adSpend = soldRows.reduce((total, row) => total + estimateAdSpend(row), 0);
+  const channels = buildChannelBreakdown(soldRows);
+  const buyerSignals = soldRows.map(parseBuyerSignals);
+  const deliveryMinutes = buyerSignals
+    .map((signal) => signal.deliveryMinutes)
+    .filter((value) => value > 0);
+
+  return {
+    live: {
+      count: liveRows.length,
+      listedValue: liveRows.reduce((total, row) => total + getActivePrice(row), 0),
+      revisedCount: liveRows.filter((row) => parseCurrency(row.revised) > 0).length,
+      boostedCount: liveRows.filter((row) => hasBoostNotes(row)).length,
+      staleCount: liveActionRows.filter((entry) => entry.ageDays != null).length,
+      noDateCount: liveRows.filter((row) => !getFirstListedDate(row, now)).length,
+      actionRows: liveActionRows,
+    },
+    sold: {
+      count: soldRows.length,
+      revenue: soldRevenue,
+      listedValue: soldListedValue,
+      averageSale: soldWithFinalPrice.length ? soldRevenue / soldWithFinalPrice.length : 0,
+      discount: Math.max(0, soldListedValue - soldRevenue),
+      selfExpense,
+      adSpend,
+      estimatedNet: soldRevenue - selfExpense - adSpend,
+      missingFinalPrice: soldRows.filter((row) => parseCurrency(row.finalPrice) <= 0).length,
+      missingSoldThrough: soldRows.filter((row) => !String(row.soldThrough || "").trim()).length,
+      missingSoldDay: soldRows.filter((row) => !String(row.soldDay || "").trim()).length,
+      deliveryCount: buyerSignals.filter((signal) => signal.delivery).length,
+      averageDeliveryMinutes: deliveryMinutes.length
+        ? deliveryMinutes.reduce((total, value) => total + value, 0) / deliveryMinutes.length
+        : 0,
+      cashCount: buyerSignals.filter((signal) => signal.payment === "cash").length,
+      zelleCount: buyerSignals.filter((signal) => signal.payment === "zelle").length,
+      channels,
+    },
+  };
+}
+
+function analysisMetric(label, value) {
+  return `
+    <div class="analysis-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function actionRowItem(entry) {
+  const row = entry.row;
+  const title = stripBoxIdPrefix(row.itemName || "", row.boxId) || "Untitled item";
+  const reasonClass = entry.ageDays == null ? "pill-hidden" : "pill-public";
+  return `
+    <article class="analysis-row">
+      <div>
+        <a class="boxid-link" data-route href="${appPath(`/${encodeURIComponent(row.boxId)}`)}">${escapeHtml(row.boxId)}</a>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(entry.boostText || "No boost/ad note recorded.")}</p>
+      </div>
+      <div class="analysis-row-meta">
+        <span class="detail-pill ${reasonClass}">${escapeHtml(entry.reason)}</span>
+        <span>${escapeHtml(currencyFormatter.format(entry.price))}</span>
+      </div>
+    </article>
+  `;
+}
+
+function channelRow(channel) {
+  return `
+    <div class="analysis-breakdown-row">
+      <span>${escapeHtml(channel.label)}</span>
+      <strong>${channel.count} / ${escapeHtml(currencyFormatter.format(channel.revenue))}</strong>
+    </div>
+  `;
+}
+
+function dataQualityRow(label, count) {
+  return `
+    <div class="analysis-breakdown-row">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(count))}</strong>
+    </div>
+  `;
+}
+
+function liveRankRow(entry) {
+  return `
+    <article class="business-rank-row severity-${escapeAttribute(entry.severity)}">
+      <div class="rank-score">${entry.score}</div>
+      <div class="rank-main">
+        <a class="boxid-link" data-route href="${appPath(`/${encodeURIComponent(entry.row.boxId)}`)}">${escapeHtml(entry.row.boxId)}</a>
+        <strong>${escapeHtml(entry.title)}</strong>
+        <p>${escapeHtml(entry.primaryAdvice)}</p>
+        <div class="rank-tags">
+          ${entry.reasons.slice(0, 4).map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")}
+        </div>
+      </div>
+      <div class="rank-meta">
+        <span>${escapeHtml(currencyFormatter.format(entry.price))}</span>
+        <span>${entry.ageDays == null ? "No date" : `${entry.ageDays} days`}</span>
+      </div>
+    </article>
+  `;
+}
+
+function quickWinRow(entry) {
+  return `
+    <article class="business-mini-row">
+      <div>
+        <a class="boxid-link" data-route href="${appPath(`/${encodeURIComponent(entry.row.boxId)}`)}">${escapeHtml(entry.row.boxId)}</a>
+        <strong>${escapeHtml(entry.title)}</strong>
+      </div>
+      <p>${escapeHtml(entry.quickWin)}</p>
+    </article>
+  `;
+}
+
+function soldWinnerRow(entry) {
+  return `
+    <article class="business-mini-row">
+      <div>
+        <a class="boxid-link" data-route href="${appPath(`/${encodeURIComponent(entry.row.boxId)}`)}">${escapeHtml(entry.row.boxId)}</a>
+        <strong>${escapeHtml(entry.title)}</strong>
+      </div>
+      <p>${escapeHtml(entry.lesson)}</p>
+    </article>
+  `;
+}
+
+function adLessonRow(entry) {
+  return `
+    <article class="business-mini-row">
+      <div>
+        <a class="boxid-link" data-route href="${appPath(`/${encodeURIComponent(entry.row.boxId)}`)}">${escapeHtml(entry.row.boxId)}</a>
+        <strong>${escapeHtml(entry.title)}</strong>
+      </div>
+      <p>${escapeHtml(entry.adLesson)}</p>
+    </article>
+  `;
+}
+
+function scoreLiveItem(row) {
+  const now = new Date();
+  const detail = state.productDetails[row.boxId] || {};
+  const listedDate = getFirstListedDate(row, now);
+  const latestActionDate = getLiveTrackingDate(row, now);
+  const ageDays = listedDate ? daysBetween(listedDate, now) : null;
+  const idleDays = latestActionDate ? daysBetween(latestActionDate, now) : ageDays;
+  const price = getActivePrice(row);
+  const hasPrice = price > 0;
+  const boosted = hasBoostNotes(row);
+  const hasImages = Array.isArray(detail.images) && detail.images.length > 0;
+  const hasListingContent = Boolean(String(detail.title || "").trim() || String(detail.description || "").trim());
+  const title = stripBoxIdPrefix(detail.title || row.itemName || "", row.boxId) || "Untitled item";
+  const reasons = [];
+  let score = 0;
+
+  if (ageDays == null) {
+    score += 28;
+    reasons.push("No listing date");
+  } else if (ageDays >= 180) {
+    score += 34;
+    reasons.push(`${ageDays} days listed`);
+  } else if (ageDays >= STALE_LISTING_DAYS) {
+    score += 25;
+    reasons.push(`${ageDays} days listed`);
+  } else if (ageDays >= 90) {
+    score += 12;
+    reasons.push(`${ageDays} days listed`);
+  }
+
+  if (idleDays != null && idleDays >= 45) {
+    score += 10;
+    reasons.push(`${idleDays} days no action`);
+  }
+
+  if (!hasPrice) {
+    score += 24;
+    reasons.push("No usable price");
+  }
+  if (!boosted && ageDays != null && ageDays >= 60) {
+    score += 16;
+    reasons.push("No boost note");
+  }
+  if (boosted && ageDays != null && ageDays >= 120) {
+    score += 12;
+    reasons.push("Boosted but still unsold");
+  }
+  if (!hasImages) {
+    score += 18;
+    reasons.push("No photos");
+  }
+  if (!hasListingContent) {
+    score += 10;
+    reasons.push("Missing title/description");
+  }
+  if (parseCurrency(row.revised) > 0 && parseCurrency(row.revised) < parseCurrency(row.priceListed)) {
+    reasons.push("Already discounted");
+    score += ageDays != null && ageDays >= 120 ? 8 : 2;
+  }
+
+  const primaryAdvice = buildLiveAdvice({ ageDays, idleDays, boosted, hasPrice, hasImages, hasListingContent, row });
+  const quickWin = buildQuickWin({ ageDays, idleDays, boosted, hasPrice, hasImages, hasListingContent, row });
+
+  return {
+    row,
+    title,
+    score,
+    severity: score >= 55 ? "bad" : score >= 30 ? "warn" : "ok",
+    ageDays,
+    price,
+    reasons: reasons.length ? reasons : ["Looks healthy"],
+    primaryAdvice,
+    quickWin,
+    quickWinScore: (quickWin ? 30 : 0) + score,
+  };
+}
+
+function buildLiveAdvice({ ageDays, boosted, hasPrice, hasImages, hasListingContent, row }) {
+  if (!hasPrice) {
+    return "Set a real price before spending time on promotion.";
+  }
+  if (!hasImages) {
+    return "Add photos first; ads without photos waste attention.";
+  }
+  if (!hasListingContent) {
+    return "Improve title/description before boosting.";
+  }
+  if (ageDays == null) {
+    return "Add a platform listing date so listing age can be measured.";
+  }
+  if (ageDays >= 180 && boosted) {
+    return "Stop repeating the same ad; change price, photos, title, or channel.";
+  }
+  if (ageDays >= STALE_LISTING_DAYS && !boosted) {
+    return "Refresh listing and test a small boost after improving title/photos.";
+  }
+  if (ageDays >= 90 && parseCurrency(row.revised) <= 0) {
+    return "Consider a revised price or bundle offer.";
+  }
+  return "Monitor. No urgent action from current signals.";
+}
+
+function buildQuickWin({ ageDays, idleDays, boosted, hasPrice, hasImages, hasListingContent, row }) {
+  if (hasPrice && !hasImages) {
+    return "Add photos; this is the fastest listing-quality improvement.";
+  }
+  if (hasImages && !hasListingContent) {
+    return "Write a stronger title/description before paying for ads.";
+  }
+  if (ageDays != null && ageDays >= STALE_LISTING_DAYS && !boosted) {
+    return "Refresh listing, then try a small 3-day boost.";
+  }
+  if (idleDays != null && idleDays >= 45) {
+    return "Update listing content or relist; no recent action is recorded.";
+  }
+  if (ageDays != null && ageDays >= 120 && parseCurrency(row.revised) <= 0) {
+    return "Test a revised price before another ad spend.";
+  }
+  if (boosted && ageDays != null && ageDays >= 120) {
+    return "Promotion alone is not solving it; change creative or channel.";
+  }
+  return "";
+}
+
+function scoreSoldItem(row) {
+  const detail = state.productDetails[row.boxId] || {};
+  const finalPrice = parseCurrency(row.finalPrice);
+  const listedPrice = parseCurrency(row.priceListed);
+  const expense = parseExpenseCost(row.selfExpense);
+  const adSpend = estimateAdSpend(row);
+  const net = finalPrice - expense - adSpend;
+  const soldDate = parseLooseDate(row.soldDay);
+  const firstSignal = getFirstMarketingDate(row);
+  const saleDays = soldDate && firstSignal ? daysBetween(firstSignal, soldDate) : null;
+  const discount = listedPrice > 0 && finalPrice > 0 ? listedPrice - finalPrice : 0;
+  const boosted = hasBoostNotes(row);
+  const title = stripBoxIdPrefix(detail.title || row.itemName || "", row.boxId) || "Untitled item";
+  let score = 0;
+
+  if (finalPrice > 0) {
+    score += Math.min(35, Math.round(finalPrice / 20));
+  }
+  if (net > 0) {
+    score += Math.min(30, Math.round(net / 20));
+  }
+  if (saleDays != null && saleDays <= 7) {
+    score += 30;
+  } else if (saleDays != null && saleDays <= 30) {
+    score += 18;
+  }
+  if (discount <= 0 && finalPrice > 0 && listedPrice > 0) {
+    score += 18;
+  }
+  if (!boosted && finalPrice > 0) {
+    score += 12;
+  }
+
+  const speedText = saleDays == null ? "sale speed unknown" : saleDays <= 1 ? "sold same/next day" : `sold in ${saleDays} days`;
+  const priceText =
+    discount <= 0 && finalPrice > 0 && listedPrice > 0
+      ? "without discount"
+      : discount > 0
+        ? `${currencyFormatter.format(discount)} discount`
+        : "price quality unknown";
+  const channel = normalizeSoldThrough(row.soldThrough) || "unknown channel";
+  const adLesson = buildAdLesson({ row, boosted, saleDays, adSpend, finalPrice, channel, soldDate });
+
+  return {
+    row,
+    title,
+    score,
+    adSignalScore: (boosted ? 20 : 0) + (saleDays != null && saleDays <= 14 ? 20 : 0) + (finalPrice > 0 ? 8 : 0),
+    lesson: `${speedText}, ${priceText}, ${channel}. ${net > 0 ? `${currencyFormatter.format(net)} est. net.` : "Net needs review."}`,
+    adLesson,
+  };
+}
+
+function buildAdLesson({ row, boosted, saleDays, adSpend, finalPrice, channel, soldDate }) {
+  const campaigns = parseBoostCampaigns([row.boost, row.boost2].join("; "));
+  const matchingCampaign = soldDate
+    ? campaigns.find((campaign) => soldDate >= campaign.startDate && soldDate <= campaign.endDate)
+    : null;
+  const nearbyCampaign = soldDate
+    ? campaigns.find((campaign) => {
+        const daysAfter = daysBetween(campaign.endDate, soldDate);
+        return soldDate >= campaign.startDate && daysAfter <= 7;
+      })
+    : null;
+
+  if (!boosted) {
+    return `Sold without recorded boost on ${channel}; this product/channel may not need paid ads.`;
+  }
+  if (matchingCampaign) {
+    return `Sold during boost campaign; ad likely helped. Estimated campaign cost ${currencyFormatter.format(matchingCampaign.cost)}.`;
+  }
+  if (nearbyCampaign) {
+    return `Sold shortly after boost ended; ad may have assisted. Estimated ad spend ${currencyFormatter.format(adSpend)}.`;
+  }
+  if (saleDays != null && saleDays <= 7 && finalPrice > 0) {
+    return `Boost likely helped: sold quickly after marketing signal; recorded ad spend about ${currencyFormatter.format(adSpend)}.`;
+  }
+  if (saleDays != null && saleDays > 45) {
+    return `Boost did not create a fast sale; change creative, price, or channel before repeating.`;
+  }
+  return `Boost recorded; compare messages/views manually before repeating this campaign.`;
+}
+
+function getFirstMarketingDate(row) {
+  const dates = [
+    ...getListingDates(row),
+    parseLooseDate(row.priceChangedDate),
+    ...datesFromText([row.boost, row.boost2, row.notes].join(" ")),
+  ].filter(Boolean);
+  return dates.sort((left, right) => left.getTime() - right.getTime())[0] || null;
+}
+
+function buildChannelBreakdown(rows) {
+  const channels = new Map();
+  rows.forEach((row) => {
+    const key = normalizeSoldThrough(row.soldThrough);
+    if (!key) {
+      return;
+    }
+    const existing = channels.get(key) || { label: key, count: 0, revenue: 0 };
+    existing.count += 1;
+    existing.revenue += parseCurrency(row.finalPrice);
+    channels.set(key, existing);
+  });
+
+  return Array.from(channels.values()).sort((left, right) => right.count - left.count || right.revenue - left.revenue);
+}
+
+function normalizeSoldThrough(value) {
+  const text = String(value || "").trim().toLowerCase().replace(/[,\s]+$/g, "");
+  if (!text) {
+    return "";
+  }
+  if (["fb", "facebook", "facebook marketplace"].includes(text)) {
+    return "Facebook";
+  }
+  if (["craiglist", "craigslist"].includes(text)) {
+    return "Craigslist";
+  }
+  if (text === "ebay") {
+    return "eBay";
+  }
+  if (text === "mercari") {
+    return "Mercari";
+  }
+  return text.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function getActivePrice(row) {
+  const revised = parseCurrency(row.revised);
+  return revised > 0 ? revised : parseCurrency(row.priceListed);
+}
+
+function parseExpenseCost(value) {
+  const amount = parseCurrency(value);
+  return Math.abs(amount);
+}
+
+function estimateAdSpend(row) {
+  return parseBoostCampaigns([row.boost, row.boost2].join("; ")).reduce(
+    (total, campaign) => total + campaign.cost,
+    0,
+  );
+}
+
+function parseBoostCampaigns(value) {
+  const text = String(value || "");
+  const segments = text.split(/[;\n]+/).map((segment) => segment.trim()).filter(Boolean);
+  return segments
+    .map(parseBoostCampaignSegment)
+    .filter(Boolean);
+}
+
+function parseBoostCampaignSegment(segment) {
+  const startDate = parseLooseDate(segment);
+  const amountMatches = Array.from(segment.matchAll(/(?:\$(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\$)/g));
+  if (!amountMatches.length) {
+    return null;
+  }
+
+  const amountMatch = amountMatches[amountMatches.length - 1];
+  const amount = Number(amountMatch[1] || amountMatch[2] || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  const daysMatch = segment.match(/(\d+)\s*days?/i);
+  const days = daysMatch ? Number(daysMatch[1]) : 1;
+  const amountContext = segment.slice(Math.max(0, amountMatch.index - 18), amountMatch.index + amountMatch[0].length + 24).toLowerCase();
+  const totalCost = amountContext.includes("total") ? amount : amount * Math.max(1, days);
+  const fallbackStart = startDate || new Date();
+  const endDate = addDays(fallbackStart, Math.max(1, days));
+
+  return {
+    startDate: fallbackStart,
+    endDate,
+    days: Math.max(1, days),
+    cost: totalCost,
+    raw: segment,
+  };
+}
+
+function sumDollarMentions(value) {
+  const text = String(value || "");
+  const matches = text.matchAll(/(?:\$(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\$)/g);
+  let total = 0;
+  for (const match of matches) {
+    total += Number(match[1] || match[2] || 0);
+  }
+  return total;
+}
+
+function hasBoostNotes(row) {
+  return Boolean(String(row.boost || "").trim() || String(row.boost2 || "").trim());
+}
+
+function getLiveTrackingDate(row, now = new Date()) {
+  return latestDate(
+    [
+      parseLooseDate(row.priceChangedDate, now),
+      latestDateFromText([row.boost, row.boost2, row.notes].join(" "), now),
+      latestDate(getListingDates(row, now)),
+    ].filter(Boolean),
+  );
+}
+
+function getFirstListedDate(row, now = new Date()) {
+  return earliestDate(getListingDates(row, now));
+}
+
+function getListingDates(row, now = new Date()) {
+  return ["facebook", "craiglist", "ebay", "mercari"]
+    .map((key) => parseLooseDate(row[key], now))
+    .filter(Boolean);
+}
+
+function latestDateFromText(value, now = new Date()) {
+  const dates = datesFromText(value, now);
+  return dates.sort((left, right) => right.getTime() - left.getTime())[0] || null;
+}
+
+function datesFromText(value, now = new Date()) {
+  const dates = [];
+  const text = String(value || "");
+  const matches = text.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g);
+  for (const match of matches) {
+    const parsed = parseDateParts(match[1], match[2], match[3], now);
+    if (parsed) {
+      dates.push(parsed);
+    }
+  }
+  return dates;
+}
+
+function parseLooseDate(value, now = new Date()) {
+  const match = String(value || "").match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  return match ? parseDateParts(match[1], match[2], match[3], now) : null;
+}
+
+function parseDateParts(monthText, dayText, yearText, now = new Date()) {
+  const month = Number(monthText);
+  const day = Number(dayText);
+  let year = yearText ? Number(yearText) : now.getFullYear();
+  if (year < 100) {
+    year += 2000;
+  }
+
+  if (!Number.isInteger(month) || !Number.isInteger(day) || !Number.isInteger(year)) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+  return date;
+}
+
+function daysBetween(left, right) {
+  return Math.max(0, Math.floor((right.getTime() - left.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function latestDate(dates) {
+  return dates.filter(Boolean).sort((left, right) => right.getTime() - left.getTime())[0] || null;
+}
+
+function earliestDate(dates) {
+  return dates.filter(Boolean).sort((left, right) => left.getTime() - right.getTime())[0] || null;
+}
+
+function parseBuyerSignals(row) {
+  const text = [row.buyerDescription, row.notes].join(" ").toLowerCase();
+  const delivery = /\bdeliver|delivery|delivered\b/.test(text);
+  const minutes = Array.from(text.matchAll(/(\d+)\s*min/g)).map((match) => Number(match[1]));
+  const locationMatch = text.match(/\b(nj|jersey city|brooklyn|staten island|si|manhattan|queens|bronx)\b/i);
+  let payment = "";
+  if (/\bzelle\b/.test(text)) {
+    payment = "zelle";
+  } else if (/\bcash\b/.test(text)) {
+    payment = "cash";
+  }
+
+  return {
+    delivery,
+    deliveryMinutes: minutes.length ? Math.max(...minutes) : 0,
+    payment,
+    location: locationMatch ? locationMatch[0] : "",
+  };
+}
+
+function rowBelongsToCatalog(row, catalog) {
+  const number = Number(String(row?.boxId ?? "").trim());
+  return Number.isInteger(number) && number >= catalog.from && number <= catalog.to;
+}
+
+function getNextAvailableBoxId(catalog, rows) {
+  const used = new Set(rows.map((row) => String(row?.boxId ?? "").trim()).filter(Boolean));
+  for (let number = catalog.from; number <= catalog.to; number += 1) {
+    if (!used.has(String(number))) {
+      return String(number);
+    }
+  }
+  return "";
+}
+
 function parseCurrency(value) {
   const number = Number(String(value || "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(number) ? number : 0;
@@ -1534,6 +2508,28 @@ function getCurrentRoute() {
 
 function setSaveMessage(message) {
   state.saveMessage = message;
+}
+
+function isHistoryMode() {
+  return Boolean(state.viewingSnapshot?.id);
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "unknown time";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+  return date.toLocaleString();
+}
+
+function formatSnapshotOption(snapshot) {
+  const date = formatDateTime(snapshot.createdAt);
+  const label = snapshot.label || snapshot.reason || "Saved dashboard";
+  const rows = Number.isFinite(Number(snapshot.rowCount)) ? `${snapshot.rowCount} rows` : "";
+  return [date, label, rows].filter(Boolean).join(" - ");
 }
 
 function moveProductDetails(previousBoxId, nextBoxId) {

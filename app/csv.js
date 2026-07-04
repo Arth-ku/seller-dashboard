@@ -63,6 +63,34 @@ const FIELD_ORDER = [
   "notes",
 ];
 
+const HEADER_TO_FIELD = {
+  "": "archived",
+  archive: "archived",
+  "items name": "itemName",
+  "item name": "itemName",
+  "price listed": "priceListed",
+  revised: "revised",
+  "date:": "priceChangedDate",
+  date: "priceChangedDate",
+  "self expense": "selfExpense",
+  facebook: "facebook",
+  fb: "facebook",
+  craiglist: "craiglist",
+  craigslist: "craiglist",
+  ebay: "ebay",
+  mercari: "mercari",
+  budget: "budget",
+  boost: "boost",
+  "boost 2": "boost2",
+  "description of buyer": "buyerDescription",
+  "sold day:": "soldDay",
+  "sold day": "soldDay",
+  "sold thruogh": "soldThrough",
+  "sold through": "soldThrough",
+  "final price": "finalPrice",
+  notes: "notes",
+};
+
 export function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -123,11 +151,11 @@ export function rowsFromCsv(text) {
 
   const hasHeader = parsed[0].some((cell, index) => {
     const expected = CSV_HEADERS[index] || "";
-    return cell.toLowerCase() === expected.toLowerCase();
+    return cell.toLowerCase() === expected.toLowerCase() || Boolean(headerToField(cell, index));
   });
 
   const dataRows = hasHeader ? parsed.slice(1) : parsed;
-  return normalizeImportedRows(dataRows);
+  return hasHeader ? normalizeImportedRowsFromHeader(dataRows, parsed[0]) : normalizeImportedRows(dataRows);
 }
 
 export function createEmptyRow(existingRows = []) {
@@ -254,6 +282,43 @@ function normalizeImportedRows(dataRows) {
   });
 
   return rows;
+}
+
+function normalizeImportedRowsFromHeader(dataRows, headerRow) {
+  const fieldByIndex = headerRow.map(headerToField);
+  const rows = [];
+
+  dataRows.forEach((cells) => {
+    const row = createEmptyRow(rows);
+
+    cells.forEach((raw, index) => {
+      const key = fieldByIndex[index];
+      if (!key) {
+        return;
+      }
+      row[key] = key === "archived" ? /^true$/i.test(raw) : raw;
+    });
+
+    const derivedBoxId = extractLeadingBoxId(row.itemName);
+    row.boxId = ensureUniqueBoxId(derivedBoxId || row.boxId, rows, row.id);
+    row.isDraft = false;
+
+    if (shouldRemoveRow(row)) {
+      return;
+    }
+
+    rows.push(row);
+  });
+
+  return rows;
+}
+
+function headerToField(cell, index) {
+  const normalized = String(cell || "").trim().toLowerCase();
+  if (!normalized && index === 0) {
+    return "archived";
+  }
+  return HEADER_TO_FIELD[normalized] || "";
 }
 
 function createRowId() {

@@ -16,6 +16,28 @@ https://authenticitycheck.net/apparel
 https://authenticitycheck.net/hvac
 ```
 
+## AI Data Model And Business Semantics
+
+Before changing CSV import, Google Sheet automation, inventory categories, live item health,
+sold-item analytics, ad-spend parsing, or financial calculations, read:
+
+```text
+docs/ai-data-model.md
+```
+
+That file explains what every important Google Sheet column means, including:
+
+- `Archive` as sold/history vs live inventory.
+- `Facebook`, `Craiglist`, `Ebay`, and `Mercari` as platform listing-date columns.
+- `Self Expense` as item cost, using absolute value even when the minus sign is missing.
+- `Boost` and `Boost 2` as manually written ad campaign notes.
+- `Description of buyer` as unstructured delivery/location/payment data.
+- `Sold Day`, `Sold through`, and `Final Price` as sold-analysis fields.
+- Clean-money formula: `Final Price - abs(Self Expense) - parsed Boost spend`.
+
+CSV imports must map by header name, not fixed column position. The Google Sheet has changed
+columns before, and fixed-position parsing caused shifted data.
+
 ## Live Raspberry Pi Setup
 
 Known production Raspberry Pi details:

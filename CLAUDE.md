@@ -19,6 +19,28 @@ The app intentionally uses simple infrastructure:
 - Uploaded product images in `uploads/`
 - Nginx + Cloudflare Tunnel for public access
 
+## Required Business Context For AI Agents
+
+Before changing import logic, category pages, live item health, sold analysis, ad-spend parsing,
+or financial calculations, read:
+
+```text
+docs/ai-data-model.md
+```
+
+That file is the canonical explanation of the owner's Google Sheet semantics:
+
+- `Archive` means sold/history; non-archived rows are live active listings.
+- `Facebook`, `Craiglist`, `Ebay`, and `Mercari` are listing-date columns.
+- `Self Expense` is owner cost; treat positive and negative numbers as cost via absolute value.
+- `Boost` and `Boost 2` are unstructured ad campaign notes.
+- `Description of buyer` may contain delivery, location, travel time, cash/Zelle, and other sales context.
+- `Sold Day`, `Sold through`, and `Final Price` drive archived/sold analytics.
+- Estimated clean money is `numeric Final Price - abs(Self Expense) - parsed ad spend`.
+
+CSV import must be header-based, not fixed-position. The sheet may add/remove columns such as
+`Budget`, and fixed-position parsing has previously shifted business fields.
+
 ## Live Paths And Services
 
 Known production setup:

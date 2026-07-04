@@ -183,6 +183,25 @@ def ensure_app_storage() -> None:
                 (key, value),
             )
         connection.commit()
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_state_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT 'save',
+                label TEXT NOT NULL DEFAULT '',
+                rows_json TEXT NOT NULL,
+                product_details_json TEXT NOT NULL,
+                meta_json TEXT NOT NULL,
+                row_count INTEGER NOT NULL DEFAULT 0,
+                state_hash TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_state_snapshots_created_at ON app_state_snapshots (created_at)"
+        )
+        connection.commit()
 
 
 def load_state() -> dict:
@@ -197,6 +216,289 @@ def load_state() -> dict:
         "rows": rows.get("rows", []),
         "productDetails": rows.get("productDetails", {}),
         "meta": rows.get("meta", {}),
+    }
+
+
+def snapshot_state_hash(state: dict) -> str:
+    payload = json.dumps(
+        {
+            "rows": state.get("rows", []),
+            "productDetails": state.get("productDetails", {}),
+            "meta": state.get("meta", {}),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def snapshot_label(reason: str, meta: dict) -> str:
+    if reason == "csv-import":
+        name = str(meta.get("lastImportName") or "").strip()
+        return f"CSV import: {name}" if name else "CSV import"
+    if reason == "initial":
+        return "Initial history snapshot"
+    return "Dashboard save"
+
+
+def create_state_snapshot(state: dict, reason: str = "save") -> None:
+    ensure_app_storage()
+    next_hash = snapshot_state_hash(state)
+    rows = state.get("rows", [])
+    details = state.get("productDetails", {})
+    meta = state.get("meta", {})
+    created_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+    snapshot_date = created_at[:10]
+    label = snapshot_label(reason, meta if isinstance(meta, dict) else {})
+    is_automated_import = (
+        reason == "csv-import"
+        and isinstance(meta, dict)
+        and meta.get("lastImportSource") == "automated-google-sheet"
+    )
+
+    with sqlite3.connect(DB_PATH) as connection:
+        latest = connection.execute(
+            "SELECT state_hash FROM app_state_snapshots ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if latest and latest[0] == next_hash:
+            return
+
+        if is_automated_import:
+            existing = connection.execute(
+                """
+                SELECT id, state_hash
+                FROM app_state_snapshots
+                WHERE reason = 'csv-import'
+                  AND date(created_at) = ?
+                  AND json_extract(meta_json, '$.lastImportSource') = 'automated-google-sheet'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (snapshot_date,),
+            ).fetchone()
+            if existing:
+                if existing[1] == next_hash:
+                    return
+                connection.execute(
+                    """
+                    UPDATE app_state_snapshots
+                    SET created_at = ?,
+                        label = ?,
+                        rows_json = ?,
+                        product_details_json = ?,
+                        meta_json = ?,
+                        row_count = ?,
+                        state_hash = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        created_at,
+                        label,
+                        json.dumps(rows),
+                        json.dumps(details),
+                        json.dumps(meta),
+                        len(rows) if isinstance(rows, list) else 0,
+                        next_hash,
+                        existing[0],
+                    ),
+                )
+                connection.commit()
+                return
+
+        connection.execute(
+            """
+            INSERT INTO app_state_snapshots (
+                created_at, reason, label, rows_json, product_details_json, meta_json, row_count, state_hash
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                created_at,
+                reason,
+                label,
+                json.dumps(rows),
+                json.dumps(details),
+                json.dumps(meta),
+                len(rows) if isinstance(rows, list) else 0,
+                next_hash,
+            ),
+        )
+        connection.commit()
+
+
+def ensure_initial_history_snapshot(state: dict) -> None:
+    ensure_app_storage()
+    with sqlite3.connect(DB_PATH) as connection:
+        count = connection.execute("SELECT COUNT(*) FROM app_state_snapshots").fetchone()[0]
+    if count == 0:
+        create_state_snapshot(state, "initial")
+
+
+def list_state_snapshots(limit: int = 365) -> list[dict]:
+    ensure_app_storage()
+    entries: list[dict] = []
+    with sqlite3.connect(DB_PATH) as connection:
+        rows = connection.execute(
+            """
+            SELECT id, created_at, reason, label, row_count
+            FROM app_state_snapshots
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    for row in rows:
+        entries.append(
+            {
+                "id": f"snapshot:{row[0]}",
+                "source": "snapshot",
+                "createdAt": row[1],
+                "date": row[1][:10],
+                "reason": row[2],
+                "label": row[3],
+                "rowCount": row[4],
+            }
+        )
+
+    entries.extend(list_backup_snapshots())
+    latest_by_date: dict[str, dict] = {}
+    for entry in entries:
+        date = entry.get("date", "")
+        if not date:
+            continue
+        existing = latest_by_date.get(date)
+        if existing is None or entry.get("createdAt", "") > existing.get("createdAt", ""):
+            latest_by_date[date] = entry
+
+    return sorted(latest_by_date.values(), key=lambda item: item["createdAt"], reverse=True)[:limit]
+
+
+def list_backup_snapshots() -> list[dict]:
+    backup_dir = DATA_DIR / "backups"
+    if not backup_dir.exists():
+        return []
+
+    latest_by_date: dict[str, tuple[Path, str]] = {}
+    for backup_path in sorted(backup_dir.glob("seller_dashboard-*.db")):
+        created_at = backup_created_at(backup_path)
+        date = created_at[:10]
+        existing = latest_by_date.get(date)
+        if existing is None or created_at > existing[1]:
+            latest_by_date[date] = (backup_path, created_at)
+
+    entries: list[dict] = []
+    for backup_path, created_at in latest_by_date.values():
+        row_count = backup_row_count(backup_path)
+        entries.append(
+            {
+                "id": f"backup:{backup_path.name}",
+                "source": "backup",
+                "createdAt": created_at,
+                "date": created_at[:10],
+                "reason": "sqlite-backup",
+                "label": "SQLite backup",
+                "rowCount": row_count,
+            }
+        )
+    return entries
+
+
+def backup_created_at(path: Path) -> str:
+    stem = path.stem
+    prefix = "seller_dashboard-"
+    if stem.startswith(prefix):
+        stamp = stem[len(prefix) :]
+        try:
+            parsed = dt.datetime.strptime(stamp, "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc)
+            return parsed.astimezone().isoformat(timespec="seconds")
+        except ValueError:
+            pass
+    return dt.datetime.fromtimestamp(path.stat().st_mtime).astimezone().isoformat(timespec="seconds")
+
+
+def backup_row_count(path: Path) -> int:
+    try:
+        state = load_state_from_db(path)
+    except Exception:
+        return 0
+    rows = state.get("rows", [])
+    return len(rows) if isinstance(rows, list) else 0
+
+
+def load_state_from_db(path: Path) -> dict:
+    with sqlite3.connect(path) as connection:
+        rows = {}
+        for key, value in connection.execute("SELECT key, value FROM app_state"):
+            rows[key] = json.loads(value)
+
+    return {
+        "rows": rows.get("rows", []),
+        "productDetails": rows.get("productDetails", {}),
+        "meta": rows.get("meta", {}),
+    }
+
+
+def load_history_state(history_id: str) -> dict | None:
+    if history_id.startswith("snapshot:"):
+        try:
+            snapshot_id = int(history_id.split(":", 1)[1])
+        except ValueError:
+            return None
+        return load_snapshot_state(snapshot_id)
+
+    if history_id.startswith("backup:"):
+        backup_name = history_id.split(":", 1)[1]
+        backup_path = (DATA_DIR / "backups" / backup_name).resolve()
+        try:
+            backup_path.relative_to((DATA_DIR / "backups").resolve())
+        except ValueError:
+            return None
+        if not backup_path.exists() or not backup_path.is_file():
+            return None
+
+        state = load_state_from_db(backup_path)
+        created_at = backup_created_at(backup_path)
+        return {
+            **state,
+            "snapshot": {
+                "id": history_id,
+                "createdAt": created_at,
+                "date": created_at[:10],
+                "reason": "sqlite-backup",
+                "label": "SQLite backup",
+            },
+        }
+
+    return None
+
+
+def load_snapshot_state(snapshot_id: int) -> dict | None:
+    ensure_app_storage()
+    with sqlite3.connect(DB_PATH) as connection:
+        row = connection.execute(
+            """
+            SELECT id, created_at, reason, label, rows_json, product_details_json, meta_json
+            FROM app_state_snapshots
+            WHERE id = ?
+            """,
+            (snapshot_id,),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "rows": json.loads(row[4]),
+        "productDetails": json.loads(row[5]),
+        "meta": json.loads(row[6]),
+        "snapshot": {
+            "id": f"snapshot:{row[0]}",
+            "createdAt": row[1],
+            "date": row[1][:10],
+            "reason": row[2],
+            "label": row[3],
+        },
     }
 
 
@@ -601,9 +903,10 @@ def collect_and_journal_health(source: str = "api") -> tuple[dict, dict]:
     return payload, entry
 
 
-def save_state(state: dict) -> None:
+def save_state(state: dict, reason: str = "save") -> None:
     ensure_app_storage()
     previous_state = load_state()
+    ensure_initial_history_snapshot(previous_state)
     next_rows = state.get("rows", [])
     next_details = state.get("productDetails", {})
     next_meta = state.get("meta", {})
@@ -618,14 +921,67 @@ def save_state(state: dict) -> None:
         connection.commit()
 
     cleanup_orphaned_uploads(previous_state.get("productDetails", {}), next_details)
+    create_state_snapshot(
+        {
+            "rows": next_rows,
+            "productDetails": next_details,
+            "meta": next_meta,
+        },
+        reason,
+    )
 
 
 def cleanup_orphaned_uploads(previous_details: dict, next_details: dict) -> None:
     previous_paths = extract_uploaded_paths(previous_details)
     next_paths = extract_uploaded_paths(next_details)
+    protected_paths = next_paths | extract_snapshot_uploaded_paths()
 
-    for orphan_path in previous_paths - next_paths:
+    for orphan_path in previous_paths - protected_paths:
         delete_uploaded_file(orphan_path)
+
+    cleanup_unreferenced_uploads(protected_paths)
+
+
+def extract_snapshot_uploaded_paths() -> set[str]:
+    ensure_app_storage()
+    paths: set[str] = set()
+    with sqlite3.connect(DB_PATH) as connection:
+        rows = connection.execute("SELECT product_details_json FROM app_state_snapshots").fetchall()
+
+    for (details_json,) in rows:
+        try:
+            details = json.loads(details_json)
+        except json.JSONDecodeError:
+            continue
+        paths.update(extract_uploaded_paths(details))
+
+    return paths
+
+
+def cleanup_unreferenced_uploads(referenced_paths: set[str]) -> None:
+    if not UPLOADS_DIR.exists():
+        return
+
+    for candidate in UPLOADS_DIR.rglob("*"):
+        if not candidate.is_file():
+            continue
+
+        try:
+            relative_path = candidate.resolve().relative_to(ROOT).as_posix()
+        except ValueError:
+            continue
+
+        if relative_path in referenced_paths:
+            continue
+
+        try:
+            if time.time() - candidate.stat().st_mtime < UPLOAD_DELETE_GRACE_SECONDS:
+                continue
+        except OSError:
+            continue
+
+        candidate.unlink()
+        remove_empty_parent_dirs(candidate.parent)
 
 
 def extract_uploaded_paths(details_map: dict) -> set[str]:
@@ -783,6 +1139,24 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 return None
             return self.respond_json(load_state())
 
+        if normalized_path == "/api/history":
+            if not self.require_auth():
+                return None
+            ensure_initial_history_snapshot(load_state())
+            return self.respond_json({"snapshots": list_state_snapshots()})
+
+        if normalized_path == "/api/history/state":
+            if not self.require_auth():
+                return None
+            query = parse_qs(urlparse(self.path).query)
+            history_id = query.get("id", [""])[0]
+            if not history_id:
+                return self.respond_error(HTTPStatus.BAD_REQUEST, "Invalid history id")
+            snapshot = load_history_state(history_id)
+            if snapshot is None:
+                return self.respond_error(HTTPStatus.NOT_FOUND, "Snapshot not found")
+            return self.respond_json(snapshot)
+
         if normalized_path == "/api/ping":
             return self.respond_json({"ok": True})
 
@@ -857,7 +1231,8 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 "rows": payload.get("rows", []),
                 "productDetails": payload.get("productDetails", {}),
                 "meta": payload.get("meta", {}),
-            }
+            },
+            str(payload.get("saveReason") or "save"),
         )
         return self.respond_json({"ok": True})
 

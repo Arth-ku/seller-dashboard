@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Seller Dashboard Google Sheet import every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+RandomizedDelaySec=30s
+Unit=seller-dashboard-google-sheet-import.service
+
+[Install]
+WantedBy=timers.target
