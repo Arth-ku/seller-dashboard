@@ -24,6 +24,9 @@ DB_PATH = APP_DIR / "data" / "seller_dashboard.db"
 BACKUP_DIR = APP_DIR / "data" / "backups"
 UPLOADS_DIR = APP_DIR / "uploads"
 PUBLIC_ROOT = Path("/var/www/authenticitycheck")
+NVME_BACKUP_ROOT = Path("/srv/seller-dashboard-backup")
+NVME_BACKUP_CURRENT = NVME_BACKUP_ROOT / "current"
+NVME_BACKUP_LAST_SUCCESS = NVME_BACKUP_ROOT / "last-success.txt"
 PUBLIC_HOST = "authenticitycheck.net"
 REFRESH_SECONDS = 30
 
@@ -32,6 +35,7 @@ SERVICES = (
     "nginx",
     "cloudflared",
     "seller-dashboard-backup.timer",
+    "seller-dashboard-nvme-backup.timer",
 )
 
 ENDPOINTS = (
@@ -125,6 +129,31 @@ def backup_status() -> dict:
     return {
         "state": state,
         "text": f"Latest {age_minutes} min ago, {bytes_human(latest.stat().st_size)}, {len(backups)} retained",
+    }
+
+
+def nvme_backup_status() -> dict:
+    if not NVME_BACKUP_ROOT.exists():
+        return {"state": "bad", "text": f"Missing {NVME_BACKUP_ROOT}"}
+    mount_code, mount_output = run_command(["findmnt", "-rn", "--target", str(NVME_BACKUP_ROOT)])
+    if mount_code != 0:
+        return {"state": "bad", "text": f"Not mounted at {NVME_BACKUP_ROOT}"}
+    if not NVME_BACKUP_LAST_SUCCESS.exists():
+        return {"state": "bad", "text": f"No successful run at {NVME_BACKUP_LAST_SUCCESS}"}
+
+    age_seconds = max(0, int(time.time() - NVME_BACKUP_LAST_SUCCESS.stat().st_mtime))
+    age_minutes = age_seconds // 60
+    if age_minutes <= 90:
+        state = "ok"
+    elif age_minutes <= 180:
+        state = "warn"
+    else:
+        state = "bad"
+    backup_size = directory_size(NVME_BACKUP_CURRENT)
+    location = mount_output.split()[0] if mount_output else str(NVME_BACKUP_ROOT)
+    return {
+        "state": state,
+        "text": f"Latest {age_minutes} min ago, {bytes_human(backup_size)} mirrored to {location}",
     }
 
 
@@ -223,6 +252,7 @@ def collect_health() -> dict[str, dict]:
     }
     health["Database"] = database_status()
     health["Database backups"] = backup_status()
+    health["NVMe backup mirror"] = nvme_backup_status()
     health["CPU temp"] = cpu_temp_status()
     health["GPU / throttle"] = gpu_status()
     health["Memory"] = memory_status()
