@@ -538,6 +538,8 @@ function renderCatalogPage(catalogName) {
 }
 
 function renderCatalogSection(title, rows, description, kind) {
+  const rowsWithPhotos = rows.filter(rowHasCatalogImage);
+  const rowsWithoutPhotos = rows.filter((row) => !rowHasCatalogImage(row));
   return `
     <section class="catalog-section catalog-section-${escapeAttribute(kind)}">
       <div class="catalog-section-heading">
@@ -549,11 +551,27 @@ function renderCatalogSection(title, rows, description, kind) {
       </div>
       ${
         rows.length
-          ? `<div class="catalog-grid">${rows.map(catalogCard).join("")}</div>`
+          ? `${rowsWithPhotos.length ? `<div class="catalog-grid">${rowsWithPhotos.map(catalogCard).join("")}</div>` : ""}
+             ${
+               rowsWithoutPhotos.length
+                 ? `<div class="catalog-list-panel">
+                      <div class="catalog-list-heading">
+                        <h3>No-photo items</h3>
+                        <span>${rowsWithoutPhotos.length} item${rowsWithoutPhotos.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div class="catalog-list">${rowsWithoutPhotos.map(catalogListItem).join("")}</div>
+                    </div>`
+                 : ""
+             }`
           : `<div class="empty-state compact-empty"><h2>No ${escapeHtml(title.toLowerCase())}</h2></div>`
       }
     </section>
   `;
+}
+
+function rowHasCatalogImage(row) {
+  const detail = state.productDetails[row.boxId] || {};
+  return Array.isArray(detail.images) && detail.images.length > 0;
 }
 
 function catalogCard(row) {
@@ -591,6 +609,37 @@ function catalogCard(row) {
           </label>
           <a class="button-link" data-route href="${productHref}">Edit</a>
         </div>
+      </div>
+    </article>
+  `;
+}
+
+function catalogListItem(row) {
+  const historyMode = isHistoryMode();
+  const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+  const title =
+    stripBoxIdPrefix(detail.title, row.boxId) ||
+    stripBoxIdPrefix(row.itemName || "", row.boxId) ||
+    "Untitled item";
+  const price = (row.revised || "").trim() || (row.priceListed || "").trim() || "No price";
+  const productHref = appPath(`/${encodeURIComponent(row.boxId)}`);
+
+  return `
+    <article class="catalog-list-item ${row.hidden ? "is-hidden-item" : ""}">
+      <div class="catalog-list-id">
+        <a class="boxid-link" data-route href="${productHref}">${escapeHtml(row.boxId || "UNKNOWN")}</a>
+        ${row.archived ? `<span class="detail-pill">Archived</span>` : ""}
+      </div>
+      <div class="catalog-list-main">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(price)}</span>
+      </div>
+      <div class="catalog-list-actions">
+        <label class="checkbox-wrap">
+          <input type="checkbox" data-catalog-hidden="${escapeAttribute(row.boxId)}" ${row.hidden ? "checked" : ""} ${historyMode ? "disabled" : ""} />
+          <span>${row.hidden ? "Hidden" : "Public"}</span>
+        </label>
+        <a class="button-link" data-route href="${productHref}">Edit</a>
       </div>
     </article>
   `;
