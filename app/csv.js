@@ -22,6 +22,7 @@ const CSV_HEADERS = [
 export const COLUMN_DEFS = [
   { key: "boxId", label: "Box ID", type: "text", sticky: true },
   { key: "archived", label: "Archive", type: "checkbox" },
+  { key: "hidden", label: "Hidden", type: "checkbox" },
   { key: "itemName", label: "Item Name", type: "text", wide: true, sticky: true },
   { key: "priceListed", label: "Price Listed", type: "text" },
   { key: "revised", label: "Revised", type: "text" },
@@ -136,6 +137,7 @@ export function createEmptyRow(existingRows = []) {
     isDraft: true,
     boxId,
     archived: false,
+    hidden: false,
     itemName: "",
     priceListed: "",
     revised: "",

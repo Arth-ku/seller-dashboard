@@ -38,6 +38,28 @@ Then open:
 - `http://YOUR-PI-IP:8000/sell/`
 - or through a hostname on your LAN such as `http://bluezonee:8000/sell/`
 
+## Admin login
+
+Protect the dashboard with a single admin password by setting `SELLER_ADMIN_PASSWORD`:
+
+```bash
+SELLER_ADMIN_PASSWORD="your-password" python3 server.py
+```
+
+- You sign in once and stay signed in on that device (the session cookie lasts ~10 years).
+- The dashboard and all edit/upload APIs then require the login; the public authenticity
+  pages/API stay open (they never expose private data).
+- `server.py` also reads a local `.env` file next to it (git-ignored), so you can put
+  `SELLER_ADMIN_PASSWORD=...` there instead of exporting it each time.
+- If `SELLER_ADMIN_PASSWORD` is not set, the dashboard runs open to anyone who can reach it.
+
+### Hiding items from the public
+
+Each item has a **Hidden** toggle (a column in the table and a checkbox on the product page),
+separate from **Archive**. When an item is hidden, its public authenticity page and the public
+product/catalog APIs return "not found", while you can still see and edit it as admin. Use
+Archive for "sold/gone" and Hidden for "don't show this to the public right now".
+
 ## Raspberry Pi notes
 
 - The server listens on `0.0.0.0` by default, so other devices on your local network can open it.

@@ -8,13 +8,24 @@ import {
   rowsFromCsv,
   serializeRowsToCsv,
 } from "./csv.js";
-import { loadAppState, loadHealth, saveAppState, saveMeta, saveProductDetails, saveRows, uploadImages } from "./store.js";
+import {
+  fetchSession,
+  loadAppState,
+  loadHealth,
+  login,
+  logout,
+  saveAppState,
+  saveMeta,
+  saveProductDetails,
+  saveRows,
+  uploadImages,
+} from "./store.js";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
 const BASE_PATH = normalizeBasePath(APP_CONFIG.basePath);
 const DASHBOARD_COLUMNS = COLUMN_DEFS.filter(({ key }) =>
-  ["boxId", "archived", "itemName"].includes(key),
+  ["boxId", "archived", "hidden", "itemName"].includes(key),
 );
 const MAX_IMAGES_PER_PRODUCT = 30;
 const HEALTH_REFRESH_MS = 15000;
@@ -28,6 +39,8 @@ const state = {
   archiveFilter: "present",
   boxSort: "desc",
   saveMessage: "",
+  session: { authenticated: false, authRequired: false },
+  loginError: "",
 };
 let healthRefreshTimer = null;
 
@@ -65,16 +78,85 @@ init().catch((error) => {
 });
 
 async function init() {
-  const stored = await loadAppState();
-  state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
-  state.productDetails = stored.productDetails;
-  state.meta = stored.meta;
+  state.session = await fetchSession();
 
-  if ((stored.rows || []).length !== state.rows.length) {
-    await saveRows(state.rows);
+  if (state.session.authRequired && !state.session.authenticated) {
+    renderLogin();
+    return;
   }
 
-  render();
+  await loadAndRender();
+}
+
+async function loadAndRender() {
+  try {
+    const stored = await loadAppState();
+    state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
+    state.productDetails = stored.productDetails;
+    state.meta = stored.meta;
+
+    if ((stored.rows || []).length !== state.rows.length) {
+      await saveRows(state.rows);
+    }
+
+    render();
+  } catch (error) {
+    if (error && error.unauthorized) {
+      state.session = { authenticated: false, authRequired: true };
+      renderLogin();
+      return;
+    }
+    throw error;
+  }
+}
+
+function renderLogin() {
+  clearHealthRefresh();
+  app.innerHTML = `
+    <main class="shell login-shell">
+      <section class="panel login-panel">
+        <p class="eyebrow">Seller Dashboard</p>
+        <h1>Admin sign in</h1>
+        <p class="hero-text">Enter the admin password to manage inventory.</p>
+        <form id="login-form" class="login-form">
+          <label class="field">
+            <span>Password</span>
+            <input id="login-password" type="password" autocomplete="current-password" autofocus />
+          </label>
+          <button class="button primary" type="submit">Sign in</button>
+          <p class="login-error">${escapeHtml(state.loginError)}</p>
+        </form>
+      </section>
+    </main>
+  `;
+
+  const form = document.querySelector("#login-form");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const passwordInput = document.querySelector("#login-password");
+    const password = passwordInput ? passwordInput.value : "";
+
+    const result = await login(password);
+    if (!result.ok) {
+      state.loginError = result.error || "Login failed.";
+      renderLogin();
+      document.querySelector("#login-password")?.focus();
+      return;
+    }
+
+    state.loginError = "";
+    state.session = { authenticated: true, authRequired: true };
+    await loadAndRender();
+  });
+}
+
+async function handleSignOut() {
+  await logout();
+  state.session = { authenticated: false, authRequired: true };
+  state.rows = [];
+  state.productDetails = {};
+  navigate("/");
+  renderLogin();
 }
 
 function render() {
@@ -312,6 +394,7 @@ function renderDashboard() {
           <button id="add-row-button" class="button secondary" type="button">Add Row</button>
           <button id="export-button" class="button ghost" type="button">Export CSV</button>
           <a class="button ghost" data-route href="${appPath("/health")}">Health</a>
+          ${state.session.authRequired ? `<button id="sign-out-button" class="button ghost" type="button">Sign out</button>` : ""}
         </div>
         <div class="toolbar-filters">
           <label class="search-field">
@@ -385,10 +468,23 @@ function renderProductDetail(boxId) {
         </div>
         <div class="detail-meta">
           <span class="detail-pill">${row?.archived ? "Archived" : "Present"}</span>
+          <span class="detail-pill ${row?.hidden ? "pill-hidden" : "pill-public"}">${row?.hidden ? "Hidden from public" : "Public"}</span>
           <span class="detail-pill">${escapeHtml(row?.priceListed || "No listed price")}</span>
           <span class="detail-pill">${escapeHtml(row?.soldThrough || "No sale platform")}</span>
         </div>
       </div>
+
+      ${
+        row
+          ? `<div class="visibility-bar">
+              <label class="checkbox-wrap">
+                <input id="detail-hidden" type="checkbox" ${row.hidden ? "checked" : ""} />
+                <span>Hide this item from the public authenticity page</span>
+              </label>
+              <p class="muted-text">When hidden, the public authenticity page and API return "not found". You still see and edit it here.</p>
+            </div>`
+          : ""
+      }
 
       <div class="detail-layout">
         <div class="detail-column">
@@ -483,6 +579,11 @@ function renderAuthenticityPage(boxId) {
 
   main.innerHTML = `
     <section class="panel authenticity-panel">
+      ${
+        row?.hidden
+          ? `<div class="hidden-banner">This item is <strong>hidden from public view</strong>. The public authenticity page shows "not found". This is an admin preview.</div>`
+          : ""
+      }
       <div class="authenticity-header">
         <div>
           <p class="eyebrow">Authenticity</p>
@@ -651,6 +752,11 @@ function bindDashboardEvents() {
   const exportButton = document.querySelector("#export-button");
   const archiveFilter = document.querySelector("#archive-filter");
   const boxSort = document.querySelector("#box-sort");
+  const signOutButton = document.querySelector("#sign-out-button");
+
+  signOutButton?.addEventListener("click", () => {
+    handleSignOut();
+  });
 
   csvInput?.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
@@ -799,6 +905,18 @@ function bindDashboardEvents() {
 }
 
 function bindDetailEvents(boxId) {
+  document.querySelector("#detail-hidden")?.addEventListener("change", async (event) => {
+    const row = state.rows.find((entry) => entry.boxId === boxId);
+    if (!row) {
+      return;
+    }
+
+    row.hidden = event.target.checked;
+    await saveRows(state.rows);
+    setSaveMessage(`${row.hidden ? "Hid" : "Unhid"} ${boxId} from public view.`);
+    render();
+  });
+
   document.querySelector("#save-detail-button")?.addEventListener("click", async () => {
     const current = collectDetailDraft(boxId);
     current.updatedAt = new Date().toISOString();

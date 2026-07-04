@@ -38,7 +38,25 @@ SELLER_DASHBOARD_HOST=0.0.0.0
 SELLER_DASHBOARD_PORT=8000
 SELLER_DASHBOARD_BASE_PATH=/sell
 SELLER_PUBLIC_ALLOWED_ORIGIN=https://authenticitycheck.net
+SELLER_ADMIN_PASSWORD=<secret>   # dashboard admin login; never commit the real value
 ```
+
+## Admin login and hidden items
+
+- Setting `SELLER_ADMIN_PASSWORD` gates the dashboard behind a login. Sign in once; a signed
+  `sd_admin` cookie (~10-year max-age, derived from the password) keeps you signed in. The
+  gated routes are `GET/PUT /api/state` and `POST /api/upload`; `/api/session`, `/api/login`,
+  `/api/logout`, `/api/ping`, `/api/health` and the public product/catalog APIs stay open.
+- If the password is unset, the app runs open (previous behaviour). `server.py` also loads a
+  local `.env` next to it (git-ignored) so `python3 server.py` picks up the password without
+  exporting it; on the Pi the systemd `EnvironmentFile` supplies it instead.
+- Each row has a `hidden` boolean (a Hidden column in the table and a checkbox on the product
+  page), separate from `archived`. When true, `/api/public/products/{id}` returns 404 and the
+  item is dropped from `/api/public/apparel` and `/api/public/hvac`, so the public authenticity
+  site can't see it. It is app-only (not part of the CSV schema), so re-importing a CSV resets it.
+- Note: `app/main.js` still contains a client-side `IMPORT_PASSWORD` constant for the CSV-import
+  prompt. That value is visible in the public repo, so it is not a real secret — the server-side
+  `SELLER_ADMIN_PASSWORD` is the actual access control.
 
 ## Repo Structure
 
