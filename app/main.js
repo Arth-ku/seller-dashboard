@@ -42,10 +42,10 @@ const CATALOGS = {
     from: 1,
     to: 999,
     ranges: [
-      [1, 700],
+      [1, 699],
       [800, 999],
     ],
-    rangeLabel: "1-700, 800-999 plus UNKNOWN",
+    rangeLabel: "1-699, 800-999 plus UNKNOWN",
     includeUnknown: true,
     description: "General inventory units, plus older UNKNOWN rows without a numeric Box ID.",
   },
