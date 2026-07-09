@@ -6,11 +6,35 @@
     <title>Seller Dashboard</title>
     <script>
       window.__APP_CONFIG__ = { basePath: "__APP_PREFIX__" };
+      window.addEventListener("error", function (event) {
+        var app = document.querySelector("#app");
+        if (!app || app.dataset.rendered === "true") return;
+        app.innerHTML =
+          '<main class="shell"><section class="panel error-panel"><h1>Seller Dashboard</h1><p>The dashboard could not start in this browser. Open this page directly in Chrome or Safari, then refresh.</p><pre>' +
+          String(event.message || "Unknown browser error") +
+          "</pre></section></main>";
+      });
+      window.addEventListener("unhandledrejection", function (event) {
+        var app = document.querySelector("#app");
+        if (!app || app.dataset.rendered === "true") return;
+        app.innerHTML =
+          '<main class="shell"><section class="panel error-panel"><h1>Seller Dashboard</h1><p>The dashboard could not load its data. Refresh the page or open it directly in Chrome or Safari.</p><pre>' +
+          String((event.reason && event.reason.message) || event.reason || "Unknown load error") +
+          "</pre></section></main>";
+      });
     </script>
-    <link rel="stylesheet" href="__APP_PREFIX__/app/styles.css?v=20260704j" />
+    <link rel="stylesheet" href="__APP_PREFIX__/app/styles.css?v=20260709e" />
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="__APP_PREFIX__/app/main.js?v=20260704j"></script>
+    <div id="app">
+      <main class="shell">
+        <section class="panel">
+          <p class="eyebrow">Seller Dashboard</p>
+          <h1>Loading dashboard...</h1>
+          <p class="hero-text">If this stays here, open the page directly in Chrome or Safari and refresh.</p>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="__APP_PREFIX__/app/main.js?v=20260709e"></script>
   </body>
 </html>

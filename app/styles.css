@@ -206,6 +206,11 @@ body::before {
   color: #fff;
 }
 
+.button.is-saving {
+  cursor: progress;
+  opacity: 0.82;
+}
+
 .button.secondary {
   background: var(--brand-soft);
   color: var(--brand-strong);
@@ -215,6 +220,43 @@ body::before {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--text);
+}
+
+.icon-button {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--brand-strong);
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(29, 93, 79, 0.3);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid rgba(29, 93, 79, 0.26);
+  outline-offset: 2px;
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .file-button {
@@ -227,6 +269,141 @@ body::before {
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+.save-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 64, 54, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 50px rgba(31, 33, 27, 0.18);
+  pointer-events: none;
+  overflow: hidden;
+  animation: toastIn 180ms ease-out;
+}
+
+.save-toast::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--brand);
+  transform-origin: left center;
+  animation: toastProgress 3200ms linear forwards;
+}
+
+.save-toast-saving::after {
+  animation: toastPulse 900ms ease-in-out infinite;
+}
+
+.save-toast-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--brand);
+  position: relative;
+  box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.2);
+}
+
+.save-toast-success .save-toast-icon::before,
+.save-toast-info .save-toast-icon::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 9px;
+  width: 10px;
+  height: 16px;
+  border: solid #fff;
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg);
+}
+
+.save-toast-saving .save-toast-icon::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 3px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: toastSpin 800ms linear infinite;
+}
+
+.save-toast-warning .save-toast-icon {
+  background: var(--accent);
+}
+
+.save-toast-warning .save-toast-icon::before {
+  content: "!";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+}
+
+.save-toast-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.save-toast-copy strong {
+  color: var(--brand-strong);
+  font-size: 0.96rem;
+}
+
+.save-toast-copy span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastProgress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes toastPulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes toastSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .search-field,
@@ -275,6 +452,14 @@ textarea:focus {
 .status-row p {
   margin: 0;
   font-size: 0.92rem;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .category-panel {

@@ -57,6 +57,8 @@ Do not mix archived and live rows in the same business list. Live rows need acti
 
 `hidden` is app-only, not from the CSV. It controls public visibility. Hidden items should not appear in public buyer APIs/pages, but still appear in admin views.
 
+CSV and Google Sheet imports must preserve the existing `hidden` value for the same Box ID. Imports refresh sheet-owned fields only; they must not make hidden public items visible again.
+
 ## Column Meanings
 
 ### Items Name

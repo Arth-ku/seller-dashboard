@@ -71,9 +71,22 @@ function renderProduct(product) {
           : ""
       }
       <section class="public-card hero-card">
-        <p class="eyebrow">Authenticity</p>
-        <h1>${escapeHtml(product.boxId || "Unknown")}</h1>
-        <p class="subtitle">${escapeHtml(product.itemName || "No item name available.")}</p>
+        <div class="hero-topline">
+          <div>
+            <p class="eyebrow">Authenticity</p>
+            <h1>${escapeHtml(product.boxId || "Unknown")}</h1>
+            <p class="subtitle">${escapeHtml(product.itemName || "No item name available.")}</p>
+          </div>
+          <button
+            id="copy-download-button"
+            class="icon-button"
+            type="button"
+            title="Copy listing text and download photos"
+            aria-label="Copy listing text and download photos"
+          >
+            ${copyIconSvg()}
+          </button>
+        </div>
         <div class="pill-row">
           <span class="pill">${escapeHtml(product.price || "No price added")}</span>
         </div>
@@ -134,6 +147,7 @@ function renderProduct(product) {
   `;
 
   bindImagePreviewEvents();
+  bindProductCopyEvents(product);
 }
 
 function renderHomePage() {
@@ -499,6 +513,113 @@ function renderCatalogCard(product, catalog) {
   `;
 }
 
+function bindProductCopyEvents(product) {
+  document.querySelector("#copy-download-button")?.addEventListener("click", async () => {
+    await copyListingAndDownloadImages(product);
+  });
+}
+
+async function copyListingAndDownloadImages(product) {
+  const boxId = product?.boxId || "product";
+  const title = String(product?.title || product?.itemName || "").trim();
+  const description = String(product?.description || "").trim();
+  const images = Array.isArray(product?.images) ? product.images : [];
+  const imageDownloads = images
+    .map((image, index) => ({
+      url: image?.url || "",
+      name: image?.name || `${boxId}-photo-${index + 1}`,
+    }))
+    .filter((image) => image.url);
+
+  let copied = false;
+  let copyError = null;
+  try {
+    await copyTextToClipboard(`${title};${description}`);
+    copied = true;
+  } catch (error) {
+    copyError = error;
+  }
+
+  downloadImages(imageDownloads);
+  const photoText = imageDownloads.length
+    ? ` Downloading ${imageDownloads.length} photo${imageDownloads.length === 1 ? "" : "s"}.`
+    : " No photos to download.";
+
+  if (copied) {
+    showCopyToast(`Copied listing text.${photoText}`, "success");
+    return;
+  }
+
+  showCopyToast(`${copyError?.message || "Clipboard copy was blocked by this browser."}${photoText}`, "warning");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back below for browsers that expose the Clipboard API but block writes.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Clipboard copy is not available in this browser.");
+  }
+}
+
+function downloadImages(images) {
+  images.forEach((image, index) => {
+    window.setTimeout(() => {
+      const link = document.createElement("a");
+      link.href = image.url;
+      link.download = safeDownloadName(image.name, index);
+      link.rel = "noopener";
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }, index * 120);
+  });
+}
+
+function safeDownloadName(name, index) {
+  const fallback = `photo-${index + 1}`;
+  const cleaned = String(name || fallback)
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-");
+  return cleaned || fallback;
+}
+
+function showCopyToast(message, kind = "success") {
+  document.querySelector(".copy-toast")?.remove();
+  const toast = document.createElement("div");
+  toast.className = `copy-toast copy-toast-${kind}`;
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-live", "polite");
+  toast.innerHTML = `
+    <span class="copy-toast-icon" aria-hidden="true"></span>
+    <span class="copy-toast-copy">
+      <strong>${kind === "warning" ? "Notice" : "Copied"}</strong>
+      <span>${escapeHtml(message)}</span>
+    </span>
+  `;
+  document.body.append(toast);
+  window.setTimeout(() => {
+    if (toast.isConnected) {
+      toast.remove();
+    }
+  }, 3200);
+}
+
 function getBoxIdFromPath() {
   const parts = decodeURIComponent(window.location.pathname).split("/").filter(Boolean);
   if (!parts.length) {
@@ -563,6 +684,15 @@ function renderError(message) {
         <p class="muted">${escapeHtml(message)}</p>
       </section>
     </main>
+  `;
+}
+
+function copyIconSvg() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
   `;
 }
 

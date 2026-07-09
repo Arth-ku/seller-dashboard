@@ -5,9 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
-  rowsFromCsv,
-  serializeRowsToCsv,
-} from "./csv.js";
+} from "./csv.js?v=20260709e";
 import {
   fetchSession,
   loadAppState,
@@ -16,12 +14,12 @@ import {
   loadHealth,
   login,
   logout,
+  refreshGoogleSheet,
   saveAppState,
-  saveMeta,
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js";
+} from "./store.js?v=20260709e";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -31,7 +29,6 @@ const DASHBOARD_COLUMNS = COLUMN_DEFS.filter(({ key }) =>
 );
 const MAX_IMAGES_PER_PRODUCT = 30;
 const HEALTH_REFRESH_MS = 15000;
-const IMPORT_PASSWORD = "wSS2008!";
 const STALE_LISTING_DAYS = 150;
 
 // Admin category views. These pages show every matching item, including hidden ones.
@@ -85,8 +82,11 @@ const state = {
   salesPeriodYear: new Date().getFullYear(),
   salesPeriodMonth: new Date().getMonth() + 1,
   salesPeriodWeek: "",
+  saveToast: null,
+  isRefreshingSheet: false,
 };
 let healthRefreshTimer = null;
+let saveToastTimer = null;
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -228,35 +228,25 @@ async function handleSignOut() {
 
 function render() {
   const route = getCurrentRoute();
+  app.dataset.rendered = "true";
   app.innerHTML = "";
   clearHealthRefresh();
 
   if (route.page === "health") {
     renderHealthPage();
-    return;
-  }
-
-  if (route.page === "health-rank") {
+  } else if (route.page === "health-rank") {
     renderHealthRankPage();
-    return;
-  }
-
-  if (route.page === "catalog") {
+  } else if (route.page === "catalog") {
     renderCatalogPage(route.catalog);
-    return;
-  }
-
-  if (route.subpage === "authenticity" && route.boxId) {
+  } else if (route.subpage === "authenticity" && route.boxId) {
     renderAuthenticityPage(route.boxId);
-    return;
-  }
-
-  if (route.boxId) {
+  } else if (route.boxId) {
     renderProductDetail(route.boxId);
-    return;
+  } else {
+    renderDashboard();
   }
 
-  renderDashboard();
+  renderSaveToast();
 }
 
 function renderHealthPage() {
@@ -761,8 +751,8 @@ function renderDashboard() {
         <p class="eyebrow">Seller Dashboard</p>
         <h1>Track inventory, pricing, sales, and box details in one place.</h1>
         <p class="hero-text">
-          Import your CSV, edit rows directly on the site, and open any product page to manage photos,
-          title, and description.
+          Refresh from the Google Sheet, edit rows directly on the site, and open any product page
+          to manage photos, title, and description.
         </p>
       </div>
       <div class="hero-stats">
@@ -788,11 +778,9 @@ function renderDashboard() {
     <section class="panel controls-panel">
       <div class="toolbar">
         <div class="toolbar-actions">
-          <label class="button primary file-button">
-            <input id="csv-input" type="file" accept=".csv,text/csv" ${historyMode ? "disabled" : ""} />
-            Import CSV
-          </label>
-          <button id="export-button" class="button ghost" type="button">Export CSV</button>
+          <button id="refresh-sheet-button" class="button primary" type="button" ${historyMode || state.isRefreshingSheet ? "disabled" : ""}>
+            ${state.isRefreshingSheet ? "Refreshing..." : "Refresh now"}
+          </button>
           <a class="button ghost" data-route href="${appPath("/health-rank")}">Unit Health</a>
           <a class="button ghost" data-route href="${appPath("/units")}">Units</a>
           <a class="button ghost" data-route href="${appPath("/hvac")}">HVAC</a>
@@ -877,11 +865,22 @@ function renderProductDetail(boxId) {
             <a class="back-link" data-route href="${appPath(`/${encodeURIComponent(boxId)}/authenticity`)}">Open authenticity page</a>
           </p>
         </div>
-        <div class="detail-meta">
-          <span class="detail-pill">${row?.archived ? "Archived" : "Present"}</span>
-          <span class="detail-pill ${row?.hidden ? "pill-hidden" : "pill-public"}">${row?.hidden ? "Hidden from public" : "Public"}</span>
-          <span class="detail-pill">${escapeHtml(row?.priceListed || "No listed price")}</span>
-          <span class="detail-pill">${escapeHtml(row?.soldThrough || "No sale platform")}</span>
+        <div class="detail-header-actions">
+          <button
+            id="copy-download-button"
+            class="icon-button"
+            type="button"
+            title="Copy listing text and download photos"
+            aria-label="Copy listing text and download photos"
+          >
+            ${copyIconSvg()}
+          </button>
+          <div class="detail-meta">
+            <span class="detail-pill">${row?.archived ? "Archived" : "Present"}</span>
+            <span class="detail-pill ${row?.hidden ? "pill-hidden" : "pill-public"}">${row?.hidden ? "Hidden from public" : "Public"}</span>
+            <span class="detail-pill">${escapeHtml(row?.priceListed || "No listed price")}</span>
+            <span class="detail-pill">${escapeHtml(row?.soldThrough || "No sale platform")}</span>
+          </div>
         </div>
       </div>
 
@@ -1162,10 +1161,9 @@ function buildTable(rows) {
 }
 
 function bindDashboardEvents() {
-  const csvInput = document.querySelector("#csv-input");
   const addRowButton = document.querySelector("#add-row-button");
   const searchInput = document.querySelector("#search-input");
-  const exportButton = document.querySelector("#export-button");
+  const refreshSheetButton = document.querySelector("#refresh-sheet-button");
   const archiveFilter = document.querySelector("#archive-filter");
   const boxSort = document.querySelector("#box-sort");
   const signOutButton = document.querySelector("#sign-out-button");
@@ -1189,48 +1187,38 @@ function bindDashboardEvents() {
     await loadAndRender();
   });
 
-  csvInput?.addEventListener("change", async (event) => {
+  refreshSheetButton?.addEventListener("click", async () => {
     if (isHistoryMode()) {
-      event.target.value = "";
-      setSaveMessage("Return to current before importing a CSV.");
+      setSaveMessage("Return to current before refreshing from Google Sheet.");
       render();
       return;
     }
 
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const password = window.prompt("Enter import password");
-    if (password !== IMPORT_PASSWORD) {
-      event.target.value = "";
-      setSaveMessage("CSV import canceled. Password was not accepted.");
-      render();
-      return;
-    }
-
+    state.isRefreshingSheet = true;
+    setSaveMessage("Refreshing from Google Sheet now...", { kind: "saving", autoDismiss: false });
+    render();
     try {
-      const text = await file.text();
-      const importedRows = rowsFromCsv(text);
-      const mergedImport = mergeImportedRows(importedRows);
-      state.rows = mergedImport.rows;
-      state.productDetails = mergedImport.productDetails;
-      state.meta = {
-        ...state.meta,
-        lastImportAt: new Date().toISOString(),
-        lastImportName: file.name,
-      };
-
-      await saveAppState(
-        { rows: state.rows, productDetails: state.productDetails, meta: state.meta },
-        { reason: "csv-import" },
-      );
+      const result = await refreshGoogleSheet();
+      const stored = await loadAppState();
+      state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
+      state.productDetails = stored.productDetails;
+      state.meta = stored.meta;
+      state.viewingSnapshot = null;
       state.historySnapshots = await loadHistorySnapshots();
-      setSaveMessage(`Imported ${importedRows.length} row(s) from ${file.name}.`);
-      render();
+      setSaveMessage(`Refreshed ${result.rowCount || state.rows.length} row(s) from Google Sheet.`, {
+        kind: "success",
+        heading: "Refreshed",
+      });
+    } catch (error) {
+      if (error && error.unauthorized) {
+        state.session = { authenticated: false, authRequired: true };
+        renderLogin();
+        return;
+      }
+      setSaveMessage(error?.message || "Could not refresh from Google Sheet.", { kind: "warning" });
     } finally {
-      event.target.value = "";
+      state.isRefreshingSheet = false;
+      render();
     }
   });
 
@@ -1269,26 +1257,6 @@ function bindDashboardEvents() {
 
   boxSort?.addEventListener("change", (event) => {
     state.boxSort = event.target.value;
-    render();
-  });
-
-  exportButton?.addEventListener("click", () => {
-    const password = window.prompt("Enter export password");
-    if (password !== IMPORT_PASSWORD) {
-      setSaveMessage("CSV export canceled. Password was not accepted.");
-      render();
-      return;
-    }
-
-    const csv = serializeRowsToCsv(state.rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "seller-dashboard-export.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-    setSaveMessage(isHistoryMode() ? "Historical dashboard exported as CSV." : "Current dashboard exported as CSV.");
     render();
   });
 
@@ -1379,6 +1347,10 @@ function bindDetailEvents(boxId) {
     await loadAndRender();
   });
 
+  document.querySelector("#copy-download-button")?.addEventListener("click", async () => {
+    await copyListingAndDownloadImages(boxId);
+  });
+
   document.querySelector("#detail-hidden")?.addEventListener("change", async (event) => {
     if (isHistoryMode()) {
       setSaveMessage("Historical snapshots are read-only.");
@@ -1405,12 +1377,20 @@ function bindDetailEvents(boxId) {
       return;
     }
 
-    const current = collectDetailDraft(boxId);
-    current.updatedAt = new Date().toISOString();
-    state.productDetails[boxId] = current;
-    await saveProductDetails(state.productDetails);
-    state.historySnapshots = await loadHistorySnapshots();
-    render();
+    const button = document.querySelector("#save-detail-button");
+    setButtonSaving(button, true);
+    try {
+      const current = collectDetailDraft(boxId);
+      current.updatedAt = new Date().toISOString();
+      state.productDetails[boxId] = current;
+      await saveProductDetails(state.productDetails);
+      state.historySnapshots = await loadHistorySnapshots();
+      setSaveMessage(`Saved details for ${boxId}.`, { kind: "success" });
+    } catch (error) {
+      setSaveMessage(error?.message || `Could not save details for ${boxId}.`, { kind: "warning" });
+    } finally {
+      render();
+    }
   });
 
   document.querySelector("#image-input")?.addEventListener("change", async (event) => {
@@ -1435,21 +1415,34 @@ function bindDetailEvents(boxId) {
       return;
     }
 
-    const nextFiles = files.slice(0, remainingSlots);
-    const uploaded = await uploadImages(boxId, nextFiles);
+    try {
+      const nextFiles = files.slice(0, remainingSlots);
+      setSaveMessage(`Uploading ${nextFiles.length} image${nextFiles.length === 1 ? "" : "s"} for ${boxId}...`, {
+        kind: "saving",
+        autoDismiss: false,
+      });
+      renderSaveToast();
+      const uploaded = await uploadImages(boxId, nextFiles);
 
-    // Re-read the draft AFTER the upload finishes. Capturing it before `await` let a slow
-    // upload clobber any edits made in the meantime (typed title, a second upload, etc.),
-    // which showed up as "didn't save". collectDetailDraft() now reflects the latest images
-    // plus whatever is currently typed in the title/description fields.
-    const draft = collectDetailDraft(boxId);
-    draft.images = draft.images.concat(uploaded);
-    draft.updatedAt = new Date().toISOString();
-    state.productDetails[boxId] = draft;
-    await saveProductDetails(state.productDetails);
-    state.historySnapshots = await loadHistorySnapshots();
-    event.target.value = "";
-    render();
+      // Re-read the draft AFTER the upload finishes. Capturing it before `await` let a slow
+      // upload clobber any edits made in the meantime (typed title, a second upload, etc.),
+      // which showed up as "didn't save". collectDetailDraft() now reflects the latest images
+      // plus whatever is currently typed in the title/description fields.
+      const draft = collectDetailDraft(boxId);
+      draft.images = draft.images.concat(uploaded);
+      draft.updatedAt = new Date().toISOString();
+      state.productDetails[boxId] = draft;
+      await saveProductDetails(state.productDetails);
+      state.historySnapshots = await loadHistorySnapshots();
+      setSaveMessage(`Uploaded and saved ${uploaded.length} image${uploaded.length === 1 ? "" : "s"} for ${boxId}.`, {
+        kind: "success",
+      });
+    } catch (error) {
+      setSaveMessage(error?.message || `Could not upload images for ${boxId}.`, { kind: "warning" });
+    } finally {
+      event.target.value = "";
+      render();
+    }
   });
 
   document.querySelectorAll("[data-remove-image]").forEach((button) => {
@@ -1467,6 +1460,7 @@ function bindDetailEvents(boxId) {
       state.productDetails[boxId] = current;
       await saveProductDetails(state.productDetails);
       state.historySnapshots = await loadHistorySnapshots();
+      setSaveMessage(`Removed photo and saved ${boxId}.`, { kind: "success" });
       render();
     });
   });
@@ -1518,9 +1512,96 @@ function bindDetailEvents(boxId) {
       state.productDetails[boxId] = current;
       await saveProductDetails(state.productDetails);
       state.historySnapshots = await loadHistorySnapshots();
+      setSaveMessage(`Reordered photos and saved ${boxId}.`, { kind: "success" });
       render();
     });
   });
+}
+
+async function copyListingAndDownloadImages(boxId) {
+  const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
+  const draft = collectDetailDraft(boxId);
+  const title = (draft.title || detail.title || "").trim();
+  const description = (draft.description || detail.description || "").trim();
+  const imageDownloads = (detail.images || [])
+    .map((image, index) => ({
+      url: getImageSource(image),
+      name: image?.name || `${boxId}-photo-${index + 1}`,
+    }))
+    .filter((image) => image.url);
+
+  let copied = false;
+  let copyError = null;
+  try {
+    await copyTextToClipboard(`${title};${description}`);
+    copied = true;
+  } catch (error) {
+    copyError = error;
+  }
+
+  downloadImages(imageDownloads);
+  const photoText = imageDownloads.length
+    ? ` Downloading ${imageDownloads.length} photo${imageDownloads.length === 1 ? "" : "s"}.`
+    : " No photos to download.";
+  if (copied) {
+    setSaveMessage(`Copied listing text for ${boxId}.${photoText}`, {
+      kind: "success",
+      heading: "Copied",
+    });
+  } else {
+    setSaveMessage(
+      `${copyError?.message || "Clipboard copy was blocked by the browser."}${photoText}`,
+      { kind: "warning" },
+    );
+  }
+  renderSaveToast();
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back to the legacy selection command below. Some browsers expose
+      // navigator.clipboard but deny writeText in automated or stricter contexts.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("Clipboard copy is not available in this browser.");
+  }
+}
+
+function downloadImages(images) {
+  images.forEach((image, index) => {
+    window.setTimeout(() => {
+      const link = document.createElement("a");
+      link.href = image.url;
+      link.download = safeDownloadName(image.name, index);
+      link.rel = "noopener";
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }, index * 120);
+  });
+}
+
+function safeDownloadName(name, index) {
+  const fallback = `photo-${index + 1}`;
+  const cleaned = String(name || fallback)
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-");
+  return cleaned || fallback;
 }
 
 function bindImagePreviewEvents() {
@@ -1652,65 +1733,6 @@ function collectDetailDraft(boxId) {
     title: titleInput ? titleInput.value.trim() : current.title,
     description: descriptionInput ? descriptionInput.value.trim() : current.description,
   };
-}
-
-function mergeImportedRows(importedRows) {
-  const nextRows = pruneRows(importedRows.map(normalizeRowState));
-  const previousRowsByBoxId = new Map(
-    state.rows
-      .filter((row) => row?.boxId)
-      .map((row) => [String(row.boxId).toUpperCase(), row]),
-  );
-  const nextDetails = { ...state.productDetails };
-
-  nextRows.forEach((row) => {
-    const boxId = String(row.boxId || "").toUpperCase();
-    if (!boxId || !nextDetails[boxId]) {
-      return;
-    }
-
-    const previousRow = previousRowsByBoxId.get(boxId);
-    if (!previousRow) {
-      return;
-    }
-
-    const detail = nextDetails[boxId];
-    if (shouldRefreshImportedTitle(detail.title, previousRow.itemName, row.itemName)) {
-      nextDetails[boxId] = {
-        ...detail,
-        title: row.itemName || "",
-      };
-    }
-  });
-
-  return {
-    rows: nextRows,
-    productDetails: nextDetails,
-  };
-}
-
-function shouldRefreshImportedTitle(currentTitle, previousItemName, nextItemName) {
-  const current = normalizeComparableTitle(currentTitle);
-  const previous = normalizeComparableTitle(previousItemName);
-  const next = normalizeComparableTitle(nextItemName);
-
-  if (!next) {
-    return false;
-  }
-
-  if (!current) {
-    return true;
-  }
-
-  return current === previous;
-}
-
-function normalizeComparableTitle(value) {
-  return String(value || "")
-    .trim()
-    .replace(/^\d+\s*[-:.)#]*(\s*)?/, "")
-    .replace(/\s+/g, " ")
-    .toUpperCase();
 }
 
 function buildSummary(rows) {
@@ -2902,8 +2924,96 @@ function getCurrentRoute() {
   };
 }
 
-function setSaveMessage(message) {
+function setSaveMessage(message, options = {}) {
   state.saveMessage = message;
+  const kind = options.kind || inferToastKind(message);
+  const id = Date.now() + Math.random();
+  state.saveToast = {
+    id,
+    message,
+    kind,
+    heading: options.heading || "",
+  };
+
+  if (saveToastTimer) {
+    window.clearTimeout(saveToastTimer);
+    saveToastTimer = null;
+  }
+
+  if (options.autoDismiss === false) {
+    return;
+  }
+
+  saveToastTimer = window.setTimeout(() => {
+    if (state.saveToast?.id !== id) {
+      return;
+    }
+    state.saveToast = null;
+    renderSaveToast();
+  }, options.duration || 3200);
+}
+
+function renderSaveToast() {
+  document.querySelector(".save-toast")?.remove();
+  if (!state.saveToast?.message) {
+    return;
+  }
+
+  const toast = document.createElement("div");
+  toast.className = `save-toast save-toast-${state.saveToast.kind || "info"}`;
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-live", "polite");
+  toast.innerHTML = `
+    <span class="save-toast-icon" aria-hidden="true"></span>
+    <span class="save-toast-copy">
+      <strong>${escapeHtml(state.saveToast.heading || toastHeadingForKind(state.saveToast.kind))}</strong>
+      <span>${escapeHtml(state.saveToast.message)}</span>
+    </span>
+  `;
+  document.body.append(toast);
+}
+
+function inferToastKind(message) {
+  const text = String(message || "").toLowerCase();
+  if (text.includes("saved") || text.includes("uploaded") || text.includes("imported") || text.includes("added")) {
+    return "success";
+  }
+  if (text.includes("uploading") || text.includes("saving")) {
+    return "saving";
+  }
+  if (text.includes("not") || text.includes("could not") || text.includes("canceled") || text.includes("read-only")) {
+    return "warning";
+  }
+  return "info";
+}
+
+function toastHeadingForKind(kind) {
+  if (kind === "success") {
+    return "Saved";
+  }
+  if (kind === "saving") {
+    return "Saving";
+  }
+  if (kind === "warning") {
+    return "Notice";
+  }
+  return "Updated";
+}
+
+function setButtonSaving(button, isSaving) {
+  if (!button) {
+    return;
+  }
+  if (isSaving) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = "Saving...";
+    button.disabled = true;
+    button.classList.add("is-saving");
+    return;
+  }
+  button.textContent = button.dataset.originalText || button.textContent;
+  button.disabled = false;
+  button.classList.remove("is-saving");
 }
 
 function isHistoryMode() {
@@ -2962,6 +3072,15 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value).replaceAll("`", "&#96;");
+}
+
+function copyIconSvg() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+  `;
 }
 
 function getImageSource(image) {

@@ -9,6 +9,7 @@ import datetime as dt
 import shutil
 import sqlite3
 import subprocess
+import sys
 import time
 import uuid
 from email.parser import BytesParser
@@ -235,6 +236,8 @@ def snapshot_state_hash(state: dict) -> str:
 def snapshot_label(reason: str, meta: dict) -> str:
     if reason == "csv-import":
         name = str(meta.get("lastImportName") or "").strip()
+        if meta.get("lastImportSource") == "automated-google-sheet":
+            return f"Google Sheet refresh: {name}" if name else "Google Sheet refresh"
         return f"CSV import: {name}" if name else "CSV import"
     if reason == "initial":
         return "Initial history snapshot"
@@ -1245,6 +1248,11 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         if normalized_path == "/api/logout":
             return self.handle_logout()
 
+        if normalized_path == "/api/import/google-sheet":
+            if not self.require_auth():
+                return None
+            return self.handle_google_sheet_import()
+
         if normalized_path == "/api/upload":
             if not self.require_auth():
                 return None
@@ -1311,6 +1319,40 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
     def handle_logout(self) -> None:
         return self.respond_json(
             {"ok": True}, extra_headers={"Set-Cookie": self.build_session_cookie("", 0)}
+        )
+
+    def handle_google_sheet_import(self) -> None:
+        script = ROOT / "scripts" / "import-google-sheet-csv.py"
+        try:
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                cwd=str(ROOT),
+                env=os.environ.copy(),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return self.respond_error(HTTPStatus.GATEWAY_TIMEOUT, "Google Sheet refresh timed out.")
+        except OSError as error:
+            return self.respond_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Google Sheet refresh failed: {error}")
+
+        if result.returncode != 0:
+            message = (result.stderr or result.stdout or "Google Sheet refresh failed.").strip()
+            return self.respond_error(HTTPStatus.INTERNAL_SERVER_ERROR, message)
+
+        state = load_state()
+        rows = state.get("rows", [])
+        meta = state.get("meta", {}) if isinstance(state.get("meta"), dict) else {}
+        return self.respond_json(
+            {
+                "ok": True,
+                "rowCount": len(rows) if isinstance(rows, list) else 0,
+                "lastImportAt": meta.get("lastImportAt", ""),
+                "lastImportName": meta.get("lastImportName", ""),
+                "message": (result.stdout or "Imported Google Sheet.").strip(),
+            }
         )
 
     def build_session_cookie(self, value: str, max_age: int) -> str:

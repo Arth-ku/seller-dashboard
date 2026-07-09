@@ -321,11 +321,11 @@ scripts/health-journal.py
 
 When changing public frontend files, update cache-busting query strings in `cloudflare-auth/index.html` when needed so mobile/Opera browsers do not keep stale JS/CSS.
 
-## Existing UI Security Pattern
+## Refresh Controls
 
-CSV import and CSV export currently use a frontend password prompt in `app/main.js` and compare against the existing `IMPORT_PASSWORD` constant. This prevents casual clicks but is not strong security because frontend JavaScript can be inspected.
-
-Do not put new secrets in documentation. If stronger protection is requested, move the check server-side and use an environment variable in `/etc/seller-dashboard/app.env`.
+The dashboard does not expose browser CSV import/export controls. The `Refresh now` button calls
+the authenticated server-side Google Sheet import endpoint immediately; the scheduled timer still
+runs every 5 minutes.
 
 ## Admin Login (server-side) And Hidden Items
 
@@ -341,9 +341,8 @@ Shipped in release `v1.1.0`.
 - Each row has a `hidden` boolean (a Hidden column in the table + a checkbox on the product page),
   separate from `archived`. When true, `/api/public/products/{id}` returns 404 and the item is
   dropped from `/api/public/apparel` and `/api/public/hvac`, so the public site cannot see it. It is
-  app-only (not part of the CSV schema), so a CSV re-import resets it.
-- The client-side `IMPORT_PASSWORD` prompt (CSV import/export) is still present but, being frontend
-  JS, is not a real secret. `SELLER_ADMIN_PASSWORD` is the actual access control.
+  app-only (not part of the CSV schema), so CSV and Google Sheet imports must preserve the existing
+  hidden value for matching Box IDs instead of resetting it.
 
 ## Data Behavior Rules
 

@@ -132,6 +132,28 @@ export async function loadHealth() {
   return response.json();
 }
 
+export async function refreshGoogleSheet() {
+  const response = await fetch(toApiUrl("/api/import/google-sheet"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || "Failed to refresh the Google Sheet.");
+  }
+
+  return payload;
+}
+
 export async function saveRows(rows, options = {}) {
   await saveAppState({ rows }, options);
 }

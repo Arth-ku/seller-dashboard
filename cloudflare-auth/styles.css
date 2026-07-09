@@ -235,6 +235,118 @@ body {
   margin-bottom: 14px;
 }
 
+.hero-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.icon-button {
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(29, 93, 79, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--brand);
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(24, 28, 22, 0.08);
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(29, 93, 79, 0.38);
+  background: #fff;
+}
+
+.icon-button:focus-visible {
+  outline: 3px solid rgba(29, 93, 79, 0.22);
+  outline-offset: 2px;
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.copy-toast {
+  position: fixed;
+  right: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 1400;
+  width: min(360px, calc(100vw - 28px));
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text);
+  box-shadow: 0 20px 60px rgba(24, 28, 22, 0.18);
+  backdrop-filter: blur(16px);
+}
+
+.copy-toast-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+}
+
+.copy-toast-icon::before {
+  content: "";
+  width: 10px;
+  height: 16px;
+  border-right: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.copy-toast-warning .copy-toast-icon {
+  background: #93621d;
+}
+
+.copy-toast-warning .copy-toast-icon::before {
+  width: 4px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: currentColor;
+  transform: none;
+  box-shadow: 0 13px 0 -1px currentColor;
+}
+
+.copy-toast-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.copy-toast-copy strong {
+  font-size: 0.92rem;
+}
+
+.copy-toast-copy span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
 .back-link {
   color: var(--brand);
   font-weight: 700;
@@ -705,6 +817,22 @@ body {
   .public-card {
     padding: 18px;
     border-radius: 20px;
+  }
+
+  .hero-topline {
+    gap: 12px;
+  }
+
+  .icon-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+  }
+
+  .copy-toast {
+    right: 7px;
+    bottom: max(7px, env(safe-area-inset-bottom));
+    width: calc(100vw - 14px);
   }
 
   .apparel-grid {

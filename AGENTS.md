@@ -75,10 +75,10 @@ SELLER_ADMIN_PASSWORD=<secret>   # dashboard admin login; never commit the real 
 - Each row has a `hidden` boolean (a Hidden column in the table and a checkbox on the product
   page), separate from `archived`. When true, `/api/public/products/{id}` returns 404 and the
   item is dropped from `/api/public/apparel` and `/api/public/hvac`, so the public authenticity
-  site can't see it. It is app-only (not part of the CSV schema), so re-importing a CSV resets it.
-- Note: `app/main.js` still contains a client-side `IMPORT_PASSWORD` constant for the CSV-import
-  prompt. That value is visible in the public repo, so it is not a real secret — the server-side
-  `SELLER_ADMIN_PASSWORD` is the actual access control.
+  site can't see it. It is app-only (not part of the CSV schema), so CSV and Google Sheet imports
+  must preserve the existing hidden value for matching Box IDs instead of resetting it.
+- The dashboard does not expose browser CSV import/export controls. Use `Refresh now` to trigger
+  the server-side Google Sheet import immediately; the scheduled timer still runs every 5 minutes.
 
 ## Repo Structure
 

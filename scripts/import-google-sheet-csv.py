@@ -285,11 +285,16 @@ def merge_imported_rows(imported_rows: list[dict], current_state: dict) -> dict:
 
     for row in imported_rows:
         box_id = str(row.get("boxId") or "").upper()
-        if not box_id or box_id not in product_details:
+        if not box_id:
             continue
 
         previous_row = previous_rows_by_box_id.get(box_id)
         if not previous_row:
+            continue
+
+        row["hidden"] = bool(previous_row.get("hidden"))
+
+        if box_id not in product_details:
             continue
 
         detail = product_details[box_id]
