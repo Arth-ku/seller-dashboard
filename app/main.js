@@ -5,7 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
-} from "./csv.js?v=20260709e";
+} from "./csv.js?v=20260709f";
 import {
   fetchSession,
   loadAppState,
@@ -19,7 +19,7 @@ import {
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260709e";
+} from "./store.js?v=20260709f";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -84,9 +84,11 @@ const state = {
   salesPeriodWeek: "",
   saveToast: null,
   isRefreshingSheet: false,
+  adminSearchQuery: "",
 };
 let healthRefreshTimer = null;
 let saveToastTimer = null;
+let adminSearchTimer = null;
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -746,6 +748,8 @@ function renderDashboard() {
         : ""
     }
 
+    ${renderAdminSearchPanel()}
+
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Seller Dashboard</p>
@@ -832,6 +836,7 @@ function renderDashboard() {
   main.append(categoryPanel);
   app.append(main);
 
+  bindAdminSearchEvents();
   bindDashboardEvents();
 }
 
@@ -845,6 +850,8 @@ function renderProductDetail(boxId) {
   const imageCountText = `${detail.images.length}/${MAX_IMAGES_PER_PRODUCT} images uploaded`;
 
   main.innerHTML = `
+    ${renderAdminSearchPanel()}
+
     <section class="panel detail-panel">
       ${
         historyMode
@@ -974,6 +981,7 @@ function renderProductDetail(boxId) {
   `;
 
   app.append(main);
+  bindAdminSearchEvents();
   bindDetailEvents(boxId);
 }
 
@@ -1053,6 +1061,183 @@ function renderAuthenticityPage(boxId) {
 
   app.append(main);
   bindImagePreviewEvents();
+}
+
+function renderAdminSearchPanel() {
+  const query = state.adminSearchQuery || "";
+  const trimmed = query.trim();
+  const exactMatch = findExactBoxId(trimmed);
+  const results = trimmed && !exactMatch ? findAdminSearchResults(trimmed) : [];
+
+  return `
+    <section class="panel admin-search-panel">
+      <form id="admin-search-form" class="admin-search-form">
+        <label class="admin-search-field">
+          <span>Find box</span>
+          <input
+            id="admin-search-input"
+            type="search"
+            autocomplete="off"
+            placeholder="Box ID or title"
+            value="${escapeAttribute(query)}"
+          />
+        </label>
+        <button class="button primary" type="submit">Search</button>
+        ${
+          trimmed
+            ? `<button id="admin-search-clear" class="button ghost" type="button">Back to list</button>`
+            : `<a class="button ghost" data-route href="${appPath("/")}">Back to list</a>`
+        }
+      </form>
+      ${
+        trimmed && !exactMatch
+          ? `
+            <div class="admin-search-results" aria-live="polite">
+              <div class="admin-search-summary">
+                <strong>${results.length ? `${results.length} result${results.length === 1 ? "" : "s"}` : "No results"}</strong>
+                <span>${escapeHtml(results.length ? `Matching "${trimmed}"` : `Nothing matches "${trimmed}"`)}</span>
+              </div>
+              ${
+                results.length
+                  ? `<div class="admin-search-grid">${results.map(adminSearchResultCard).join("")}</div>`
+                  : `<p class="muted-text">Try a Box ID, title word, brand, or item name.</p>`
+              }
+            </div>
+          `
+          : ""
+      }
+    </section>
+  `;
+}
+
+function adminSearchResultCard(entry) {
+  const row = entry.row;
+  const detail = entry.detail;
+  const title = detail.title || row.itemName || "";
+  const subtitle = row.itemName && row.itemName !== title ? row.itemName : detail.description || "";
+  const status = row.hidden ? "Hidden" : row.archived ? "Archived" : "Present";
+  return `
+    <a class="admin-search-card" data-route href="${appPath(`/${encodeURIComponent(row.boxId)}`)}">
+      <span class="admin-search-card-id">${escapeHtml(row.boxId)}</span>
+      <span class="admin-search-card-title">${escapeHtml(title || "Untitled unit")}</span>
+      <span class="admin-search-card-subtitle">${escapeHtml(subtitle || "No title or item name available.")}</span>
+      <span class="admin-search-card-meta">
+        <span>${escapeHtml(status)}</span>
+        <span>${escapeHtml(row.revised || row.priceListed || "No price")}</span>
+      </span>
+    </a>
+  `;
+}
+
+function bindAdminSearchEvents() {
+  const form = document.querySelector("#admin-search-form");
+  const input = document.querySelector("#admin-search-input");
+  const clearButton = document.querySelector("#admin-search-clear");
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const query = String(input?.value || "").trim();
+    state.adminSearchQuery = query;
+    const exactBoxId = findExactBoxId(query);
+    if (exactBoxId) {
+      state.adminSearchQuery = "";
+      navigate(`/${encodeURIComponent(exactBoxId)}`);
+      return;
+    }
+    render();
+    focusAdminSearch();
+  });
+
+  input?.addEventListener("input", (event) => {
+    state.adminSearchQuery = event.target.value;
+    const query = state.adminSearchQuery.trim();
+    const exactBoxId = findExactBoxId(query);
+    if (adminSearchTimer) {
+      window.clearTimeout(adminSearchTimer);
+      adminSearchTimer = null;
+    }
+
+    if (exactBoxId && !hasLongerBoxIdStartingWith(query)) {
+      adminSearchTimer = window.setTimeout(() => {
+        if (state.adminSearchQuery.trim().toUpperCase() !== exactBoxId.toUpperCase()) {
+          return;
+        }
+        state.adminSearchQuery = "";
+        navigate(`/${encodeURIComponent(exactBoxId)}`);
+      }, 350);
+      return;
+    }
+
+    render();
+    focusAdminSearch();
+  });
+
+  clearButton?.addEventListener("click", () => {
+    state.adminSearchQuery = "";
+    navigate("/");
+    render();
+  });
+}
+
+function focusAdminSearch() {
+  window.requestAnimationFrame(() => {
+    const refreshed = document.querySelector("#admin-search-input");
+    if (!refreshed) {
+      return;
+    }
+    refreshed.focus();
+    refreshed.setSelectionRange(refreshed.value.length, refreshed.value.length);
+  });
+}
+
+function findExactBoxId(query) {
+  const normalized = String(query || "").trim().toUpperCase();
+  if (!normalized) {
+    return "";
+  }
+  const row = state.rows.find((entry) => String(entry.boxId || "").toUpperCase() === normalized);
+  return row?.boxId || "";
+}
+
+function hasLongerBoxIdStartingWith(query) {
+  const normalized = String(query || "").trim().toUpperCase();
+  return state.rows.some((entry) => {
+    const boxId = String(entry.boxId || "").toUpperCase();
+    return boxId !== normalized && boxId.startsWith(normalized);
+  });
+}
+
+function findAdminSearchResults(query) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) {
+    return [];
+  }
+
+  return pruneRows((Array.isArray(state.rows) ? state.rows : []).map(normalizeRowState))
+    .map((row) => ({
+      row,
+      detail: state.productDetails[row.boxId] || createEmptyDetail(row.boxId),
+    }))
+    .filter(({ row, detail }) =>
+      [
+        row.boxId,
+        row.itemName,
+        row.priceListed,
+        row.revised,
+        row.soldThrough,
+        detail.title,
+        detail.description,
+      ]
+        .map(normalizeSearchText)
+        .some((value) => value.includes(normalized)),
+    );
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function buildTable(rows) {
