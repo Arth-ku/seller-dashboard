@@ -5,7 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
-} from "./csv.js?v=20260709g";
+} from "./csv.js?v=20260709h";
 import {
   fetchSession,
   loadAppState,
@@ -19,7 +19,7 @@ import {
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260709g";
+} from "./store.js?v=20260709h";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -88,7 +88,6 @@ const state = {
 };
 let healthRefreshTimer = null;
 let saveToastTimer = null;
-let adminSearchTimer = null;
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -1161,26 +1160,6 @@ function bindAdminSearchEvents() {
 
   input?.addEventListener("input", (event) => {
     state.adminSearchQuery = event.target.value;
-    const query = state.adminSearchQuery.trim();
-    const exactBoxId = findExactBoxId(query);
-    if (adminSearchTimer) {
-      window.clearTimeout(adminSearchTimer);
-      adminSearchTimer = null;
-    }
-
-    if (exactBoxId && !hasLongerBoxIdStartingWith(query)) {
-      adminSearchTimer = window.setTimeout(() => {
-        if (state.adminSearchQuery.trim().toUpperCase() !== exactBoxId.toUpperCase()) {
-          return;
-        }
-        state.adminSearchQuery = "";
-        navigate(`/${encodeURIComponent(exactBoxId)}`);
-      }, 350);
-      return;
-    }
-
-    render();
-    focusAdminSearch();
   });
 
   clearButton?.addEventListener("click", () => {
@@ -1208,14 +1187,6 @@ function findExactBoxId(query) {
   }
   const row = state.rows.find((entry) => String(entry.boxId || "").toUpperCase() === normalized);
   return row?.boxId || "";
-}
-
-function hasLongerBoxIdStartingWith(query) {
-  const normalized = String(query || "").trim().toUpperCase();
-  return state.rows.some((entry) => {
-    const boxId = String(entry.boxId || "").toUpperCase();
-    return boxId !== normalized && boxId.startsWith(normalized);
-  });
 }
 
 function findAdminSearchResults(query) {
