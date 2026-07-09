@@ -199,8 +199,9 @@ body::before {
 
 .admin-search-card {
   display: grid;
-  gap: 8px;
-  min-height: 154px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 132px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -214,6 +215,33 @@ body::before {
   transform: translateY(-1px);
   border-color: rgba(29, 93, 79, 0.3);
   box-shadow: 0 14px 34px rgba(31, 33, 27, 0.08);
+}
+
+.admin-search-card-photo {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid rgba(31, 33, 27, 0.08);
+  border-radius: 12px;
+  background: #f4f1ea;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.admin-search-card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-search-card-body {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
 }
 
 .admin-search-card-id {
@@ -1657,6 +1685,14 @@ textarea:focus {
 
   .admin-search-form {
     grid-template-columns: 1fr;
+  }
+
+  .admin-search-card {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .admin-search-card-photo {
+    width: 82px;
   }
 
   .hero-stats,

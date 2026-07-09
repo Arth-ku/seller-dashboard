@@ -5,7 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
-} from "./csv.js?v=20260709f";
+} from "./csv.js?v=20260709g";
 import {
   fetchSession,
   loadAppState,
@@ -19,7 +19,7 @@ import {
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260709f";
+} from "./store.js?v=20260709g";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -1116,14 +1116,25 @@ function adminSearchResultCard(entry) {
   const title = detail.title || row.itemName || "";
   const subtitle = row.itemName && row.itemName !== title ? row.itemName : detail.description || "";
   const status = row.hidden ? "Hidden" : row.archived ? "Archived" : "Present";
+  const firstImage = Array.isArray(detail.images) ? detail.images.find((image) => getImageSource(image)) : null;
+  const imageSource = firstImage ? getImageSource(firstImage) : "";
   return `
     <a class="admin-search-card" data-route href="${appPath(`/${encodeURIComponent(row.boxId)}`)}">
-      <span class="admin-search-card-id">${escapeHtml(row.boxId)}</span>
-      <span class="admin-search-card-title">${escapeHtml(title || "Untitled unit")}</span>
-      <span class="admin-search-card-subtitle">${escapeHtml(subtitle || "No title or item name available.")}</span>
-      <span class="admin-search-card-meta">
-        <span>${escapeHtml(status)}</span>
-        <span>${escapeHtml(row.revised || row.priceListed || "No price")}</span>
+      <span class="admin-search-card-photo">
+        ${
+          imageSource
+            ? `<img src="${escapeAttribute(imageSource)}" alt="${escapeAttribute(firstImage.name || `${row.boxId} photo`)}" loading="lazy" decoding="async" />`
+            : `<span>No photo</span>`
+        }
+      </span>
+      <span class="admin-search-card-body">
+        <span class="admin-search-card-id">${escapeHtml(row.boxId)}</span>
+        <span class="admin-search-card-title">${escapeHtml(title || "Untitled unit")}</span>
+        <span class="admin-search-card-subtitle">${escapeHtml(subtitle || "No title or item name available.")}</span>
+        <span class="admin-search-card-meta">
+          <span>${escapeHtml(status)}</span>
+          <span>${escapeHtml(row.revised || row.priceListed || "No price")}</span>
+        </span>
       </span>
     </a>
   `;
@@ -1230,7 +1241,25 @@ function findAdminSearchResults(query) {
       ]
         .map(normalizeSearchText)
         .some((value) => value.includes(normalized)),
-    );
+    )
+    .sort(compareAdminSearchResults);
+}
+
+function compareAdminSearchResults(left, right) {
+  if (Boolean(left.row.archived) !== Boolean(right.row.archived)) {
+    return left.row.archived ? 1 : -1;
+  }
+
+  const leftNumber = Number.parseInt(left.row.boxId, 10);
+  const rightNumber = Number.parseInt(right.row.boxId, 10);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber !== rightNumber) {
+    return rightNumber - leftNumber;
+  }
+
+  return String(left.row.boxId || "").localeCompare(String(right.row.boxId || ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function normalizeSearchText(value) {
