@@ -12,14 +12,16 @@ import {
   loadHistorySnapshots,
   loadHistoryState,
   loadHealth,
+  loadLucyInsights,
   login,
   logout,
   refreshGoogleSheet,
+  runLucyAnalysis,
   saveAppState,
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260709h";
+} from "./store.js?v=20260709i";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -29,6 +31,7 @@ const DASHBOARD_COLUMNS = COLUMN_DEFS.filter(({ key }) =>
 );
 const MAX_IMAGES_PER_PRODUCT = 30;
 const HEALTH_REFRESH_MS = 15000;
+const LUCY_REFRESH_MS = 60000;
 const STALE_LISTING_DAYS = 150;
 
 // Admin category views. These pages show every matching item, including hidden ones.
@@ -85,8 +88,12 @@ const state = {
   saveToast: null,
   isRefreshingSheet: false,
   adminSearchQuery: "",
+  lucyInsights: null,
+  lucyError: "",
+  lucyIsRunning: false,
 };
 let healthRefreshTimer = null;
+let lucyRefreshTimer = null;
 let saveToastTimer = null;
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -232,9 +239,12 @@ function render() {
   app.dataset.rendered = "true";
   app.innerHTML = "";
   clearHealthRefresh();
+  clearLucyRefresh();
 
   if (route.page === "health") {
     renderHealthPage();
+  } else if (route.page === "lucy") {
+    renderLucyPage();
   } else if (route.page === "health-rank") {
     renderHealthRankPage();
   } else if (route.page === "catalog") {
@@ -376,6 +386,255 @@ function renderHealthError(error) {
       </article>
     `;
   }
+}
+
+function renderLucyPage() {
+  const main = document.createElement("main");
+  main.className = "shell lucy-shell";
+  main.innerHTML = `
+    <section class="panel lucy-panel">
+      <div class="detail-header">
+        <div>
+          <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
+          <p class="eyebrow">Lucy Analyst</p>
+          <h1>Lucy Insights</h1>
+          <p class="detail-subtitle">Private autonomous notes from inventory health, unit ranking, and dashboard health checks.</p>
+        </div>
+        <div class="detail-meta" id="lucy-meta">
+          <span class="detail-pill">Loading</span>
+        </div>
+      </div>
+      <div class="health-actions">
+        <div class="toolbar-actions">
+          <button id="lucy-refresh-button" class="button secondary" type="button">Refresh</button>
+          <button id="lucy-run-button" class="button primary" type="button">Run Lucy now</button>
+        </div>
+        <span id="lucy-updated" class="muted-text">Waiting for Lucy...</span>
+      </div>
+      <div id="lucy-content" class="lucy-content">
+        <div class="health-card is-warn">
+          <span class="health-status">Loading</span>
+          <h2>Reading Lucy's latest note...</h2>
+          <p>Please wait.</p>
+        </div>
+      </div>
+    </section>
+  `;
+
+  app.append(main);
+
+  document.querySelector("#lucy-refresh-button")?.addEventListener("click", () => {
+    refreshLucy({ immediate: true });
+  });
+  document.querySelector("#lucy-run-button")?.addEventListener("click", () => {
+    refreshLucy({ immediate: true, run: true });
+  });
+  refreshLucy({ immediate: true });
+}
+
+async function refreshLucy({ immediate = false, run = false } = {}) {
+  clearLucyRefresh();
+  const refreshButton = document.querySelector("#lucy-refresh-button");
+  const runButton = document.querySelector("#lucy-run-button");
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.textContent = run ? "Waiting..." : "Refreshing...";
+  }
+  if (runButton) {
+    runButton.disabled = true;
+    runButton.textContent = run ? "Running..." : "Run Lucy now";
+  }
+
+  try {
+    const payload = run ? await runLucyAnalysis() : await loadLucyInsights();
+    state.lucyInsights = payload;
+    state.lucyError = "";
+    renderLucyPayload(payload);
+  } catch (error) {
+    if (error && error.unauthorized) {
+      state.session = { authenticated: false, authRequired: true };
+      renderLogin();
+      return;
+    }
+    state.lucyError = error?.message || String(error);
+    renderLucyError(error);
+  } finally {
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.textContent = "Refresh";
+    }
+    if (runButton) {
+      runButton.disabled = false;
+      runButton.textContent = "Run Lucy now";
+    }
+    lucyRefreshTimer = window.setTimeout(refreshLucy, LUCY_REFRESH_MS);
+  }
+
+  if (!immediate) {
+    return;
+  }
+}
+
+function renderLucyPayload(payload) {
+  const meta = document.querySelector("#lucy-meta");
+  const updated = document.querySelector("#lucy-updated");
+  const content = document.querySelector("#lucy-content");
+  const status = payload?.status || "watch";
+  const cards = Array.isArray(payload?.cards) ? payload.cards : [];
+  const sections = Array.isArray(payload?.sections) ? payload.sections : [];
+  const actions = Array.isArray(payload?.actions) ? payload.actions : [];
+
+  if (meta) {
+    meta.innerHTML = `
+      <span class="detail-pill ${status === "bad" ? "pill-hidden" : "pill-public"}">${escapeHtml(status.toUpperCase())}</span>
+      ${payload?.generatedAt ? `<span class="detail-pill">Generated ${escapeHtml(formatDateTime(payload.generatedAt))}</span>` : ""}
+      ${payload?.publishedAt ? `<span class="detail-pill">Published ${escapeHtml(formatDateTime(payload.publishedAt))}</span>` : ""}
+    `;
+  }
+
+  if (updated) {
+    updated.textContent = payload?.generatedAt
+      ? `Last Lucy analysis ${formatDateTime(payload.generatedAt)} · auto-refreshes every minute`
+      : "No Lucy analysis has been generated yet.";
+  }
+
+  if (!content) {
+    return;
+  }
+
+  content.innerHTML = `
+    <section class="lucy-hero-note">
+      <span class="health-status is-${escapeAttribute(statusToHealthClass(status))}">${escapeHtml(status.toUpperCase())}</span>
+      <h2>${escapeHtml(payload?.headline || "Lucy has not published yet.")}</h2>
+      <p>${escapeHtml(payload?.summary || "")}</p>
+    </section>
+
+    ${
+      cards.length
+        ? `<section class="lucy-card-grid">${cards.map(lucyCard).join("")}</section>`
+        : ""
+    }
+
+    ${
+      actions.length
+        ? `<section class="lucy-section lucy-actions-section">
+            <div class="business-panel-heading">
+              <h2>Recommended actions</h2>
+              <p>Lucy-ranked ideas. Nothing here changes inventory until you act.</p>
+            </div>
+            <div class="lucy-list">${actions.map(lucyActionRow).join("")}</div>
+          </section>`
+        : ""
+    }
+
+    ${sections.length ? sections.map(lucySection).join("") : `<p class="analysis-empty">No sections published yet.</p>`}
+  `;
+}
+
+function renderLucyError(error) {
+  const meta = document.querySelector("#lucy-meta");
+  const updated = document.querySelector("#lucy-updated");
+  const content = document.querySelector("#lucy-content");
+
+  if (meta) {
+    meta.innerHTML = `<span class="detail-pill pill-hidden">ERROR</span>`;
+  }
+  if (updated) {
+    updated.textContent = `Lucy load failed at ${new Date().toLocaleString()}`;
+  }
+  if (content) {
+    content.innerHTML = `
+      <article class="health-card is-bad">
+        <span class="health-status">BAD</span>
+        <h2>Lucy insights could not load</h2>
+        <strong>Check the analyst script or API.</strong>
+        <p>${escapeHtml(error?.message || String(error))}</p>
+      </article>
+    `;
+  }
+}
+
+function lucyCard(card) {
+  const severity = card.severity || "watch";
+  return `
+    <article class="lucy-card lucy-${escapeAttribute(severity)}">
+      <span>${escapeHtml(card.label || "Metric")}</span>
+      <strong>${escapeHtml(card.value || "")}</strong>
+      ${card.detail ? `<p>${escapeHtml(card.detail)}</p>` : ""}
+    </article>
+  `;
+}
+
+function lucySection(section) {
+  const items = Array.isArray(section.items) ? section.items : [];
+  return `
+    <section class="lucy-section">
+      <div class="business-panel-heading">
+        <h2>${escapeHtml(section.title || "Lucy note")}</h2>
+        ${section.summary ? `<p>${escapeHtml(section.summary)}</p>` : ""}
+      </div>
+      ${
+        items.length
+          ? `<div class="lucy-list">${items.map(lucyInsightRow).join("")}</div>`
+          : `<p class="analysis-empty">No items in this section.</p>`
+      }
+    </section>
+  `;
+}
+
+function lucyInsightRow(item) {
+  const severity = item.severity || "watch";
+  return `
+    <article class="lucy-row lucy-${escapeAttribute(severity)}">
+      <span class="lucy-row-status">${escapeHtml(severityLabel(severity))}</span>
+      <div>
+        <strong>${escapeHtml(item.label || "Insight")}</strong>
+        ${item.value ? `<p>${escapeHtml(item.value)}</p>` : ""}
+        ${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function lucyActionRow(action) {
+  const severity = action.severity || action.priority || "watch";
+  return `
+    <article class="lucy-row lucy-${escapeAttribute(severity)}">
+      <span class="lucy-row-status">${escapeHtml(severityLabel(severity))}</span>
+      <div>
+        <strong>${escapeHtml(action.title || action.label || "Action")}</strong>
+        ${action.reason ? `<p>${escapeHtml(action.reason)}</p>` : ""}
+        ${action.evidence ? `<small>${escapeHtml(action.evidence)}</small>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function clearLucyRefresh() {
+  if (lucyRefreshTimer) {
+    window.clearTimeout(lucyRefreshTimer);
+    lucyRefreshTimer = null;
+  }
+}
+
+function severityLabel(value) {
+  if (value === "bad" || value === "high") {
+    return "Fix";
+  }
+  if (value === "ok" || value === "low") {
+    return "OK";
+  }
+  return "Watch";
+}
+
+function statusToHealthClass(value) {
+  if (value === "bad") {
+    return "bad";
+  }
+  if (value === "ok") {
+    return "ok";
+  }
+  return "warn";
 }
 
 function renderHealthRankPage() {
@@ -784,6 +1043,7 @@ function renderDashboard() {
           <button id="refresh-sheet-button" class="button primary" type="button" ${historyMode || state.isRefreshingSheet ? "disabled" : ""}>
             ${state.isRefreshingSheet ? "Refreshing..." : "Refresh now"}
           </button>
+          <a class="button ghost" data-route href="${appPath("/lucy")}">Lucy</a>
           <a class="button ghost" data-route href="${appPath("/health-rank")}">Unit Health</a>
           <a class="button ghost" data-route href="${appPath("/units")}">Units</a>
           <a class="button ghost" data-route href="${appPath("/hvac")}">HVAC</a>
@@ -3079,6 +3339,14 @@ function getCurrentRoute() {
   if (parts[0] === "health") {
     return {
       page: "health",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
+  if (parts[0] === "lucy") {
+    return {
+      page: "lucy",
       boxId: "",
       subpage: "",
     };

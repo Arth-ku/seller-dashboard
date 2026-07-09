@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Lucy seller-dashboard analyst regularly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Persistent=true
+Unit=seller-dashboard-lucy-analyst.service
+
+[Install]
+WantedBy=timers.target

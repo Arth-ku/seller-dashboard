@@ -126,6 +126,57 @@ sudo systemctl enable --now seller-dashboard-health-journal.timer
 
 Journal files are stored as JSON lines in `data/health-journal/YYYY-MM-DD.jsonl`.
 
+## Lucy autonomous analyst
+
+Lucy has a private dashboard page for autonomous seller-dashboard analysis:
+
+- Dashboard page: `https://authenticitycheck.net/sell/lucy`
+- Private API: `GET /sell/api/lucy/insights`
+- Publish API: `PUT /sell/api/lucy/insights`
+- Tracked insight file: `lucy/insights.json`
+
+Lucy reads inventory rows, product details, unit-health signals, archived sales lessons, and
+the health journal. She publishes recommendations to the Lucy page without changing inventory,
+customer messages, website content, or service settings.
+
+Run once on the Pi:
+
+```bash
+cd /home/lwarm/apps/seller-dashboard
+python3 scripts/lucy-analyst.py --write
+```
+
+Run once and commit/push the updated tracked insight file:
+
+```bash
+cd /home/lwarm/apps/seller-dashboard
+python3 scripts/lucy-analyst.py --write --commit --push
+```
+
+The commit only happens when `lucy/insights.json` changed, so the GitHub history tracks meaningful
+Lucy updates instead of creating empty commits.
+
+To let an external Lucy bot publish through the API, set `LUCY_WRITE_TOKEN` in
+`/etc/seller-dashboard/app.env` and send it as either:
+
+```text
+X-Lucy-Token: your-token
+Authorization: Bearer your-token
+```
+
+To run Lucy continuously:
+
+```bash
+sudo install -m 644 deploy/systemd/seller-dashboard-lucy-analyst.service /etc/systemd/system/
+sudo install -m 644 deploy/systemd/seller-dashboard-lucy-analyst.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now seller-dashboard-lucy-analyst.timer
+```
+
+The timer runs every 30 minutes after boot. It writes the private runtime copy in `data/lucy/`,
+updates `lucy/insights.json`, commits it, and pushes it if Git credentials are available for the
+`lwarm` user.
+
 ## Cloudflare split setup
 
 You can keep the dashboard on the Raspberry Pi and publish only the public authenticity pages through Cloudflare.

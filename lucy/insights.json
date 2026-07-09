@@ -1,0 +1,93 @@
+{
+  "actions": [],
+  "cards": [
+    {
+      "detail": "0 critical, 0 watch",
+      "label": "Live items",
+      "severity": "watch",
+      "value": "0"
+    },
+    {
+      "detail": "No live inventory",
+      "label": "Top unit score",
+      "severity": "watch",
+      "value": "0"
+    },
+    {
+      "detail": "Listing/photo/price moves Lucy can see now",
+      "label": "Quick wins",
+      "severity": "watch",
+      "value": "0"
+    },
+    {
+      "detail": "0 snapshots today",
+      "label": "Dashboard health",
+      "severity": "watch",
+      "value": "UNKNOWN"
+    }
+  ],
+  "generatedAt": "2026-07-09T12:02:46-04:00",
+  "headline": "Lucy is waiting for production dashboard data.",
+  "publishedAt": "2026-07-09T12:02:46-04:00",
+  "schemaVersion": 1,
+  "sections": [
+    {
+      "items": [
+        {
+          "detail": "This is normal on a fresh local checkout before the production data folder is present.",
+          "label": "No live inventory loaded",
+          "severity": "watch",
+          "value": "Lucy needs the live SQLite state on the Pi to rank units."
+        }
+      ],
+      "summary": "Top live inventory ranked by listing age, missing price/photos/content, boost signals, and idle time.",
+      "title": "Unit-health priorities"
+    },
+    {
+      "items": [
+        {
+          "detail": "On production this will update after the Google Sheet import and health journal are present.",
+          "label": "No quick wins yet",
+          "severity": "watch",
+          "value": "Lucy did not find a listing/photo/price action from the currently loaded data."
+        }
+      ],
+      "summary": "Small actions likely to improve listing quality or attention before spending more ad money.",
+      "title": "Quick wins"
+    },
+    {
+      "items": [
+        {
+          "detail": "0 snapshots reviewed.",
+          "label": "Health journal",
+          "severity": "watch",
+          "value": "No health journal entries yet."
+        }
+      ],
+      "summary": "no journal entries yet",
+      "title": "Dashboard health"
+    },
+    {
+      "items": [
+        {
+          "detail": "Archived sales fields look usable.",
+          "label": "Sales cleanup",
+          "severity": "ok",
+          "value": "0 missing sold fields"
+        }
+      ],
+      "summary": "Archived rows are used as the learning set for channels, revenue, and cleanup gaps.",
+      "title": "Sales lessons"
+    }
+  ],
+  "source": {
+    "healthDate": "2026-07-09",
+    "kind": "lucy-analyst",
+    "liveCount": 0,
+    "publishedBy": "lucy-analyst",
+    "rowCount": 0,
+    "soldCount": 0
+  },
+  "status": "watch",
+  "summary": "0 live items. 0 quick wins. dashboard health: no journal entries yet."
+}

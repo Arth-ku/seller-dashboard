@@ -1551,6 +1551,155 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
+.lucy-shell {
+  max-width: 1280px;
+}
+
+.lucy-content {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.lucy-hero-note,
+.lucy-section,
+.lucy-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-strong);
+}
+
+.lucy-hero-note {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+}
+
+.lucy-hero-note h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 3vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.lucy-hero-note p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.lucy-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lucy-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 138px;
+  padding: 16px;
+}
+
+.lucy-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lucy-card strong {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+
+.lucy-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.lucy-section {
+  padding: 18px;
+}
+
+.lucy-actions-section {
+  border-color: rgba(29, 93, 79, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.lucy-list {
+  display: grid;
+  border-top: 1px solid rgba(31, 33, 27, 0.08);
+}
+
+.lucy-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(31, 33, 27, 0.08);
+}
+
+.lucy-row:last-child {
+  border-bottom: 0;
+}
+
+.lucy-row-status {
+  align-self: start;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 58px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(190, 122, 47, 0.14);
+  color: #8a501c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lucy-row strong {
+  display: block;
+  line-height: 1.35;
+}
+
+.lucy-row p {
+  margin: 5px 0 0;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.lucy-row small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.lucy-bad {
+  border-color: rgba(155, 61, 51, 0.22);
+}
+
+.lucy-bad .lucy-row-status {
+  background: rgba(155, 61, 51, 0.12);
+  color: var(--danger);
+}
+
+.lucy-ok {
+  border-color: rgba(29, 93, 79, 0.18);
+}
+
+.lucy-ok .lucy-row-status {
+  background: rgba(29, 93, 79, 0.1);
+  color: var(--brand-strong);
+}
+
 .is-ok {
   border-color: rgba(17, 99, 41, 0.22);
   background: rgba(216, 245, 223, 0.76);
@@ -1657,6 +1806,7 @@ textarea:focus {
   .analysis-grid,
   .analysis-split,
   .business-board,
+  .lucy-card-grid,
   .health-rank-header,
   .health-rank-row {
     grid-template-columns: 1fr;
@@ -1707,6 +1857,10 @@ textarea:focus {
   }
 
   .business-rank-row {
+    grid-template-columns: 1fr;
+  }
+
+  .lucy-row {
     grid-template-columns: 1fr;
   }
 

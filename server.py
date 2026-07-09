@@ -52,6 +52,10 @@ DATA_DIR = ROOT / "data"
 UPLOADS_DIR = ROOT / "uploads"
 DB_PATH = DATA_DIR / "seller_dashboard.db"
 HEALTH_JOURNAL_DIR = DATA_DIR / "health-journal"
+LUCY_DATA_DIR = DATA_DIR / "lucy"
+LUCY_TRACKED_DIR = ROOT / "lucy"
+LUCY_LATEST_PATH = LUCY_DATA_DIR / "latest.json"
+LUCY_TRACKED_INSIGHTS_PATH = LUCY_TRACKED_DIR / "insights.json"
 NVME_BACKUP_ROOT = Path("/srv/seller-dashboard-backup")
 NVME_BACKUP_CURRENT = NVME_BACKUP_ROOT / "current"
 NVME_BACKUP_LAST_SUCCESS = NVME_BACKUP_ROOT / "last-success.txt"
@@ -66,6 +70,7 @@ JSON_HEADERS = {"Content-Type": "application/json; charset=utf-8"}
 # behaviour); the public API still hides "hidden" items regardless.
 ADMIN_PASSWORD = os.environ.get("SELLER_ADMIN_PASSWORD", "").strip()
 AUTH_REQUIRED = bool(ADMIN_PASSWORD)
+LUCY_WRITE_TOKEN = os.environ.get("LUCY_WRITE_TOKEN", "").strip()
 COOKIE_NAME = "sd_admin"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365 * 10  # ~10 years — "stay signed in" for personal use
 # Freshly uploaded images are protected from orphan-cleanup for this long (see delete_uploaded_file).
@@ -906,6 +911,76 @@ def collect_and_journal_health(source: str = "api") -> tuple[dict, dict]:
     return payload, entry
 
 
+def default_lucy_insights() -> dict:
+    now = local_now().isoformat(timespec="seconds")
+    return {
+        "schemaVersion": 1,
+        "generatedAt": "",
+        "publishedAt": "",
+        "status": "empty",
+        "headline": "Lucy has not published an analysis yet.",
+        "summary": "The Lucy analyst worker will publish inventory, unit-health, and dashboard-health insights here after it runs.",
+        "cards": [],
+        "sections": [
+            {
+                "title": "Waiting for first analysis",
+                "summary": "Install and run scripts/lucy-analyst.py to create the first private dashboard note.",
+                "items": [
+                    {
+                        "label": "Next step",
+                        "value": "Run Lucy analyst",
+                        "detail": "python3 scripts/lucy-analyst.py --write",
+                        "severity": "watch",
+                    }
+                ],
+            }
+        ],
+        "actions": [],
+        "source": {"kind": "default", "generatedAt": now},
+    }
+
+
+def load_lucy_insights() -> dict:
+    for path in (LUCY_LATEST_PATH, LUCY_TRACKED_INSIGHTS_PATH):
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return default_lucy_insights()
+
+
+def save_lucy_insights(payload: dict, source: str = "api") -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("Lucy insight payload must be a JSON object")
+
+    now = local_now().isoformat(timespec="seconds")
+    next_payload = {
+        "schemaVersion": 1,
+        **payload,
+        "publishedAt": payload.get("publishedAt") or now,
+        "source": {
+            **(payload.get("source") if isinstance(payload.get("source"), dict) else {}),
+            "publishedBy": source,
+        },
+    }
+
+    LUCY_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    LUCY_TRACKED_DIR.mkdir(parents=True, exist_ok=True)
+    body = json.dumps(next_payload, indent=2, sort_keys=True) + "\n"
+    LUCY_LATEST_PATH.write_text(body, encoding="utf-8")
+    LUCY_TRACKED_INSIGHTS_PATH.write_text(body, encoding="utf-8")
+
+    journal_path = LUCY_DATA_DIR / f"{journal_date_from_timestamp()}.jsonl"
+    with journal_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(next_payload, separators=(",", ":")) + "\n")
+
+    return next_payload
+
+
 def save_state(state: dict, reason: str = "save") -> None:
     ensure_app_storage()
     previous_state = load_state()
@@ -1171,6 +1246,11 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             }
             return self.respond_json(payload)
 
+        if normalized_path == "/api/lucy/insights":
+            if not self.require_auth():
+                return None
+            return self.respond_json(load_lucy_insights())
+
         if normalized_path == "/api/health/journal/latest":
             return self.handle_health_journal_latest()
 
@@ -1219,6 +1299,20 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
 
     def do_PUT(self) -> None:
         normalized_path = self._normalize_request_path(self.path)
+
+        if normalized_path == "/api/lucy/insights":
+            if not self.has_lucy_write_access():
+                return
+
+            payload = self.read_json_body()
+            if payload is None:
+                return
+            try:
+                saved = save_lucy_insights(payload, "api")
+            except ValueError as error:
+                return self.respond_error(HTTPStatus.BAD_REQUEST, str(error))
+            return self.respond_json({"ok": True, "insights": saved})
+
         if normalized_path != "/api/state":
             return self.respond_error(HTTPStatus.NOT_FOUND, "API route not found")
 
@@ -1257,6 +1351,11 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             if not self.require_auth():
                 return None
             return self.handle_upload(urlparse(self.path))
+
+        if normalized_path == "/api/lucy/analyze":
+            if not self.require_auth():
+                return None
+            return self.handle_lucy_analyze()
 
         return self.respond_error(HTTPStatus.NOT_FOUND, "API route not found")
 
@@ -1297,6 +1396,21 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         if self.is_authenticated():
             return True
         self.respond_error(HTTPStatus.UNAUTHORIZED, "Authentication required")
+        return False
+
+    def has_lucy_write_access(self) -> bool:
+        if self.is_authenticated():
+            return True
+
+        if LUCY_WRITE_TOKEN:
+            supplied = self.headers.get("X-Lucy-Token", "")
+            auth_header = self.headers.get("Authorization", "")
+            if auth_header.lower().startswith("bearer "):
+                supplied = auth_header[7:].strip()
+            if hmac.compare_digest(supplied, LUCY_WRITE_TOKEN):
+                return True
+
+        self.respond_error(HTTPStatus.UNAUTHORIZED, "Lucy write access required")
         return False
 
     def handle_login(self) -> None:
@@ -1354,6 +1468,33 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 "message": (result.stdout or "Imported Google Sheet.").strip(),
             }
         )
+
+    def handle_lucy_analyze(self) -> None:
+        script = ROOT / "scripts" / "lucy-analyst.py"
+        try:
+            result = subprocess.run(
+                [sys.executable, str(script), "--write"],
+                cwd=str(ROOT),
+                env=os.environ.copy(),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return self.respond_error(HTTPStatus.GATEWAY_TIMEOUT, "Lucy analysis timed out.")
+        except OSError as error:
+            return self.respond_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Lucy analysis failed: {error}")
+
+        if result.returncode != 0:
+            message = (result.stderr or result.stdout or "Lucy analysis failed.").strip()
+            return self.respond_error(HTTPStatus.INTERNAL_SERVER_ERROR, message)
+
+        try:
+            insights = json.loads(result.stdout or "{}")
+        except json.JSONDecodeError:
+            insights = load_lucy_insights()
+        return self.respond_json({"ok": True, "insights": insights})
 
     def build_session_cookie(self, value: str, max_age: int) -> str:
         cookie = SimpleCookie()
