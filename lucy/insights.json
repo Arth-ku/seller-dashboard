@@ -1,31 +1,31 @@
 {
   "actions": [
     {
-      "evidence": "188 days listed; 87 days no action; Boosted but still unsold; No photos; Missing title/description; Already discounted",
+      "evidence": "189 days listed; 88 days no action; Boosted but still unsold; No photos; Missing title/description; Already discounted",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
-      "evidence": "486 days listed; 486 days no action; No boost note; No photos; Missing title/description",
+      "evidence": "487 days listed; 487 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 1: hdmi transmitter"
     },
     {
-      "evidence": "466 days listed; 297 days no action; No boost note; No photos; Missing title/description",
+      "evidence": "467 days listed; 298 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 2: Ev charger 1lvl"
     },
     {
-      "evidence": "340 days listed; 340 days no action; No boost note; No photos; Missing title/description",
+      "evidence": "341 days listed; 341 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
     },
     {
-      "evidence": "345 days listed; 345 days no action; No boost note; No photos; Missing title/description",
+      "evidence": "346 days listed; 346 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 419: table outdoor HPDE x2"
@@ -51,57 +51,57 @@
       "value": "24"
     },
     {
-      "detail": "95 snapshots today",
+      "detail": "2 snapshots today",
       "label": "Dashboard health",
-      "severity": "watch",
+      "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-12T23:45:51-04:00",
+  "generatedAt": "2026-07-13T00:16:20-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-12T23:45:51-04:00",
+  "publishedAt": "2026-07-13T00:16:20-04:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
-          "detail": "britannica micropaedia in Garage | score 92 | 188 days listed, 87 days no action, Boosted but still unsold, No photos, Missing title/description, Already discounted",
+          "detail": "britannica micropaedia in Garage | score 92 | 189 days listed, 88 days no action, Boosted but still unsold, No photos, Missing title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
-          "detail": "hdmi transmitter | score 88 | 486 days listed, 486 days no action, No boost note, No photos, Missing title/description",
+          "detail": "hdmi transmitter | score 88 | 487 days listed, 487 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 1",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
-          "detail": "Ev charger 1lvl | score 88 | 466 days listed, 297 days no action, No boost note, No photos, Missing title/description",
+          "detail": "Ev charger 1lvl | score 88 | 467 days listed, 298 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 2",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
-          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | score 88 | 340 days listed, 340 days no action, No boost note, No photos, Missing title/description",
+          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | score 88 | 341 days listed, 341 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 407",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
-          "detail": "table outdoor HPDE x2 | score 88 | 345 days listed, 345 days no action, No boost note, No photos, Missing title/description",
+          "detail": "table outdoor HPDE x2 | score 88 | 346 days listed, 346 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 419",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | score 88 | 234 days listed, 234 days no action, No boost note, No photos, Missing title/description",
+          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | score 88 | 235 days listed, 235 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 515",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
-          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | score 88 | 207 days listed, 207 days no action, No boost note, No photos, Missing title/description",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | score 88 | 208 days listed, 208 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 520",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
@@ -161,13 +161,13 @@
     {
       "items": [
         {
-          "detail": "timed out",
-          "label": "Public product API",
-          "severity": "bad",
-          "value": "bad - Unavailable"
+          "detail": "2 snapshots reviewed.",
+          "label": "Health journal",
+          "severity": "ok",
+          "value": "No dashboard health problems in today's journal."
         }
       ],
-      "summary": "needs attention",
+      "summary": "all ok",
       "title": "Dashboard health"
     },
     {
@@ -202,7 +202,7 @@
     }
   ],
   "source": {
-    "healthDate": "2026-07-12",
+    "healthDate": "2026-07-13",
     "kind": "lucy-analyst",
     "liveCount": 162,
     "publishedBy": "lucy-analyst",
@@ -210,5 +210,5 @@
     "soldCount": 308
   },
   "status": "bad",
-  "summary": "162 live items across Apparel: 101, HVAC: 22, Units: 39. 24 quick wins. dashboard health: needs attention."
+  "summary": "162 live items across Apparel: 101, HVAC: 22, Units: 39. 24 quick wins. dashboard health: all ok."
 }
