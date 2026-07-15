@@ -347,6 +347,7 @@ def build_insights() -> dict:
             continue
         actions.append(
             {
+                "boxId": item["boxId"],
                 "title": f"Box {item['boxId']}: {item['title']}",
                 "reason": item["primaryAdvice"],
                 "evidence": "; ".join(item["reasons"]),
@@ -356,6 +357,7 @@ def build_insights() -> dict:
 
     unit_health_items = [
         {
+            "boxId": item["boxId"],
             "label": f"Box {item['boxId']}",
             "value": item["primaryAdvice"],
             "detail": f"{item['title']} | score {item['score']} | {', '.join(item['reasons'])}",
@@ -375,6 +377,7 @@ def build_insights() -> dict:
 
     quick_win_items = [
         {
+            "boxId": item["boxId"],
             "label": f"Box {item['boxId']}",
             "value": item["quickWin"],
             "detail": item["title"],

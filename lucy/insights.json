@@ -1,30 +1,35 @@
 {
   "actions": [
     {
+      "boxId": "3",
       "evidence": "191 days listed; 90 days no action; Boosted but still unsold; No photos; Missing title/description; Already discounted",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
+      "boxId": "1",
       "evidence": "489 days listed; 489 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 1: hdmi transmitter"
     },
     {
+      "boxId": "2",
       "evidence": "469 days listed; 300 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 2: Ev charger 1lvl"
     },
     {
+      "boxId": "407",
       "evidence": "343 days listed; 343 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
     },
     {
+      "boxId": "419",
       "evidence": "348 days listed; 348 days no action; No boost note; No photos; Missing title/description",
       "reason": "Add photos first; ads without photos waste attention.",
       "severity": "high",
@@ -51,62 +56,70 @@
       "value": "28"
     },
     {
-      "detail": "131 snapshots today",
+      "detail": "132 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-15T11:06:33-04:00",
+  "generatedAt": "2026-07-15T11:21:26-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-15T11:06:34-04:00",
+  "publishedAt": "2026-07-15T11:21:26-04:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
+          "boxId": "3",
           "detail": "britannica micropaedia in Garage | score 92 | 191 days listed, 90 days no action, Boosted but still unsold, No photos, Missing title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "1",
           "detail": "hdmi transmitter | score 88 | 489 days listed, 489 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 1",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "2",
           "detail": "Ev charger 1lvl | score 88 | 469 days listed, 300 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 2",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "407",
           "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | score 88 | 343 days listed, 343 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 407",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "419",
           "detail": "table outdoor HPDE x2 | score 88 | 348 days listed, 348 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 419",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "515",
           "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | score 88 | 237 days listed, 237 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 515",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "520",
           "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | score 88 | 210 days listed, 210 days no action, No boost note, No photos, Missing title/description",
           "label": "Box 520",
           "severity": "bad",
           "value": "Add photos first; ads without photos waste attention."
         },
         {
+          "boxId": "1054",
           "detail": "Untitled item | score 80 | No listing date, No usable price, No photos, Missing title/description",
           "label": "Box 1054",
           "severity": "bad",
@@ -119,36 +132,42 @@
     {
       "items": [
         {
+          "boxId": "3",
           "detail": "britannica micropaedia in Garage",
           "label": "Box 3",
           "severity": "watch",
           "value": "Add photos; this is the fastest listing-quality improvement."
         },
         {
+          "boxId": "1",
           "detail": "hdmi transmitter",
           "label": "Box 1",
           "severity": "watch",
           "value": "Add photos; this is the fastest listing-quality improvement."
         },
         {
+          "boxId": "2",
           "detail": "Ev charger 1lvl",
           "label": "Box 2",
           "severity": "watch",
           "value": "Add photos; this is the fastest listing-quality improvement."
         },
         {
+          "boxId": "407",
           "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color)",
           "label": "Box 407",
           "severity": "watch",
           "value": "Add photos; this is the fastest listing-quality improvement."
         },
         {
+          "boxId": "419",
           "detail": "table outdoor HPDE x2",
           "label": "Box 419",
           "severity": "watch",
           "value": "Add photos; this is the fastest listing-quality improvement."
         },
         {
+          "boxId": "515",
           "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display",
           "label": "Box 515",
           "severity": "watch",
@@ -161,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "131 snapshots reviewed.",
+          "detail": "132 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."

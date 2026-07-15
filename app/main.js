@@ -5,7 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
-} from "./csv.js?v=20260709h";
+} from "./csv.js?v=20260715a";
 import {
   fetchSession,
   loadAppState,
@@ -21,7 +21,7 @@ import {
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260709i";
+} from "./store.js?v=20260715a";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -584,6 +584,7 @@ function lucySection(section) {
 
 function lucyInsightRow(item) {
   const severity = item.severity || "watch";
+  const boxId = lucyBoxId(item);
   return `
     <article class="lucy-row lucy-${escapeAttribute(severity)}">
       <span class="lucy-row-status">${escapeHtml(severityLabel(severity))}</span>
@@ -591,6 +592,7 @@ function lucyInsightRow(item) {
         <strong>${escapeHtml(item.label || "Insight")}</strong>
         ${item.value ? `<p>${escapeHtml(item.value)}</p>` : ""}
         ${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ""}
+        ${boxId ? `<a class="lucy-open-box" data-route href="${appPath(`/${encodeURIComponent(boxId)}`)}">Open box ${escapeHtml(boxId)}</a>` : ""}
       </div>
     </article>
   `;
@@ -598,6 +600,7 @@ function lucyInsightRow(item) {
 
 function lucyActionRow(action) {
   const severity = action.severity || action.priority || "watch";
+  const boxId = lucyBoxId(action);
   return `
     <article class="lucy-row lucy-${escapeAttribute(severity)}">
       <span class="lucy-row-status">${escapeHtml(severityLabel(severity))}</span>
@@ -605,9 +608,21 @@ function lucyActionRow(action) {
         <strong>${escapeHtml(action.title || action.label || "Action")}</strong>
         ${action.reason ? `<p>${escapeHtml(action.reason)}</p>` : ""}
         ${action.evidence ? `<small>${escapeHtml(action.evidence)}</small>` : ""}
+        ${boxId ? `<a class="lucy-open-box" data-route href="${appPath(`/${encodeURIComponent(boxId)}`)}">Open box ${escapeHtml(boxId)}</a>` : ""}
       </div>
     </article>
   `;
+}
+
+function lucyBoxId(item) {
+  if (item?.boxId) {
+    return String(item.boxId);
+  }
+  const text = [item?.title, item?.label, item?.value, item?.detail, item?.reason, item?.evidence]
+    .map((value) => String(value || ""))
+    .join(" ");
+  const match = text.match(/\bbox\s+([A-Z]*\d+[A-Z0-9-]*)\b/i);
+  return match ? match[1].toUpperCase() : "";
 }
 
 function clearLucyRefresh() {
@@ -994,6 +1009,7 @@ function renderDashboard() {
     ? new Date(state.meta.lastImportAt).toLocaleString()
     : "No CSV imported yet";
   const selectedHistoryValue = historyMode ? String(state.viewingSnapshot.id) : "current";
+  const actionQueue = buildDashboardActionQueue(rows);
 
   main.innerHTML = `
     ${
@@ -1077,6 +1093,10 @@ function renderDashboard() {
     </section>
   `;
 
+  const actionQueuePanel = document.createElement("section");
+  actionQueuePanel.className = "panel action-queue-panel";
+  actionQueuePanel.innerHTML = renderDashboardActionQueue(actionQueue);
+
   const categoryPanel = document.createElement("section");
   categoryPanel.className = "panel category-panel";
   categoryPanel.innerHTML = `
@@ -1092,7 +1112,7 @@ function renderDashboard() {
     </div>
   `;
 
-  main.append(categoryPanel);
+  main.append(actionQueuePanel, categoryPanel);
   app.append(main);
 
   bindAdminSearchEvents();
@@ -1498,6 +1518,174 @@ function normalizeSearchText(value) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function buildDashboardActionQueue(rows) {
+  const now = new Date();
+  const liveRows = pruneRows((Array.isArray(rows) ? rows : []).map(normalizeRowState)).filter((row) => !row.archived);
+  const counts = liveRows.reduce(
+    (summary, row) => {
+      const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+      const hasImages = Array.isArray(detail.images) && detail.images.length > 0;
+      const hasTitle = Boolean(String(detail.title || "").trim());
+      const hasDescription = Boolean(String(detail.description || "").trim());
+      if (getActivePrice(row) <= 0) {
+        summary.noPrice += 1;
+      }
+      if (!hasImages) {
+        summary.noPhotos += 1;
+      }
+      if (!hasTitle || !hasDescription) {
+        summary.missingText += 1;
+      }
+      const listedDate = getFirstListedDate(row, now);
+      const actionDate = getLiveTrackingDate(row, now);
+      const ageDays = listedDate ? daysBetween(listedDate, now) : null;
+      const idleDays = actionDate ? daysBetween(actionDate, now) : ageDays;
+      if ((ageDays !== null && ageDays >= STALE_LISTING_DAYS) || (idleDays !== null && idleDays >= 45)) {
+        summary.stale += 1;
+      }
+      return summary;
+    },
+    { noPrice: 0, noPhotos: 0, missingText: 0, stale: 0 },
+  );
+
+  const items = liveRows
+    .map((row) => buildDashboardActionQueueItem(row, now))
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || compareBoxIds(left.boxId, right.boxId, "desc"))
+    .slice(0, 8);
+
+  return { counts, items, liveCount: liveRows.length };
+}
+
+function buildDashboardActionQueueItem(row, now) {
+  const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+  const images = Array.isArray(detail.images) ? detail.images : [];
+  const image = images.find((entry) => getImageSource(entry));
+  const hasImages = Boolean(image);
+  const hasTitle = Boolean(String(detail.title || "").trim());
+  const hasDescription = Boolean(String(detail.description || "").trim());
+  const price = getActivePrice(row);
+  const listedDate = getFirstListedDate(row, now);
+  const actionDate = getLiveTrackingDate(row, now);
+  const ageDays = listedDate ? daysBetween(listedDate, now) : null;
+  const idleDays = actionDate ? daysBetween(actionDate, now) : ageDays;
+  const reasons = [];
+  let score = 0;
+  let action = "";
+
+  if (price <= 0) {
+    score += 120;
+    action ||= "Set a real price";
+    reasons.push("No usable price");
+  }
+  if (!hasImages) {
+    score += 90;
+    action ||= "Add photos";
+    reasons.push("No photos");
+  }
+  if (!hasTitle || !hasDescription) {
+    score += 70;
+    action ||= "Write title/description";
+    reasons.push(!hasTitle && !hasDescription ? "Missing title and description" : !hasTitle ? "Missing title" : "Missing description");
+  }
+  if (ageDays === null) {
+    score += 32;
+    reasons.push("No listing date");
+  } else if (ageDays >= STALE_LISTING_DAYS) {
+    score += 55;
+    action ||= "Refresh stale listing";
+    reasons.push(`${ageDays} days listed`);
+  } else if (ageDays >= 90) {
+    score += 22;
+    reasons.push(`${ageDays} days listed`);
+  }
+  if (idleDays !== null && idleDays >= 45) {
+    score += 28;
+    action ||= "Update listing activity";
+    reasons.push(`${idleDays} days no action`);
+  }
+  if (hasBoostNotes(row) && ageDays !== null && ageDays >= 120) {
+    score += 18;
+    action ||= "Change boosted listing";
+    reasons.push("Boosted but still unsold");
+  }
+
+  if (!reasons.length) {
+    return null;
+  }
+
+  return {
+    boxId: row.boxId,
+    title: stripBoxIdPrefix(detail.title || row.itemName || "Untitled item", row.boxId),
+    action: action || "Review listing",
+    reasons,
+    image,
+    priceLabel: price > 0 ? currencyFormatter.format(price) : "No price",
+    status: row.hidden ? "Hidden" : "Present",
+    score,
+  };
+}
+
+function renderDashboardActionQueue(queue) {
+  const items = Array.isArray(queue.items) ? queue.items : [];
+  const counts = queue.counts || {};
+  return `
+    <div class="action-queue-heading">
+      <div>
+        <p class="eyebrow">Action Queue</p>
+        <h2>Work these boxes next</h2>
+        <p>Ranked from current live inventory using price, photos, listing content, age, boost, and idle-time signals.</p>
+      </div>
+      <a class="button ghost" data-route href="${appPath("/lucy")}">Open Lucy</a>
+    </div>
+    <div class="action-queue-metrics">
+      ${actionQueueMetric("No price", counts.noPrice)}
+      ${actionQueueMetric("No photos", counts.noPhotos)}
+      ${actionQueueMetric("Missing text", counts.missingText)}
+      ${actionQueueMetric("Stale/no action", counts.stale)}
+    </div>
+    ${
+      items.length
+        ? `<div class="action-queue-grid">${items.map(actionQueueCard).join("")}</div>`
+        : `<p class="analysis-empty">No urgent live inventory actions found right now.</p>`
+    }
+  `;
+}
+
+function actionQueueMetric(label, value) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${Number(value || 0)}</strong>
+    </div>
+  `;
+}
+
+function actionQueueCard(item) {
+  const imageSource = item.image ? getImageSource(item.image) : "";
+  return `
+    <a class="action-queue-card" data-route href="${appPath(`/${encodeURIComponent(item.boxId)}`)}">
+      <span class="action-queue-photo">
+        ${
+          imageSource
+            ? `<img src="${escapeAttribute(imageSource)}" alt="${escapeAttribute(item.image.name || `${item.boxId} photo`)}" loading="lazy" decoding="async" />`
+            : `<span>No photo</span>`
+        }
+      </span>
+      <span class="action-queue-body">
+        <span class="action-queue-topline">
+          <strong>${escapeHtml(item.boxId)}</strong>
+          <span>${escapeHtml(item.status)}</span>
+          <span>${escapeHtml(item.priceLabel)}</span>
+        </span>
+        <span class="action-queue-title">${escapeHtml(item.title)}</span>
+        <span class="action-queue-action">${escapeHtml(item.action)}</span>
+        <small>${escapeHtml(item.reasons.slice(0, 3).join(" · "))}</small>
+      </span>
+    </a>
+  `;
 }
 
 function buildTable(rows) {
