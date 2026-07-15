@@ -5,7 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
-} from "./csv.js?v=20260715a";
+} from "./csv.js?v=20260715b";
 import {
   fetchSession,
   loadAppState,
@@ -21,7 +21,7 @@ import {
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260715a";
+} from "./store.js?v=20260715b";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -636,6 +636,9 @@ function severityLabel(value) {
   if (value === "bad" || value === "high") {
     return "Fix";
   }
+  if (value === "prep") {
+    return "Prep";
+  }
   if (value === "ok" || value === "low") {
     return "OK";
   }
@@ -649,6 +652,9 @@ function statusToHealthClass(value) {
   if (value === "ok") {
     return "ok";
   }
+  if (value === "prep") {
+    return "warn";
+  }
   return "warn";
 }
 
@@ -660,10 +666,12 @@ function renderHealthRankPage() {
       ...scoreLiveItem(row),
       categoryLabel: getCatalogLabelsForRow(row).join(" / ") || "Uncategorized",
     }))
-    .sort((left, right) => right.score - left.score || compareBoxIds(left.row.boxId, right.row.boxId, "asc"));
+    .sort(compareHealthRankEntries);
   const badCount = ranked.filter((entry) => entry.severity === "bad").length;
   const warnCount = ranked.filter((entry) => entry.severity === "warn").length;
-  const okCount = ranked.length - badCount - warnCount;
+  const prepCount = ranked.filter((entry) => entry.severity === "prep").length;
+  const listedCount = ranked.filter((entry) => entry.isListed).length;
+  const okCount = ranked.length - badCount - warnCount - prepCount;
 
   const main = document.createElement("main");
   main.className = "shell";
@@ -674,10 +682,11 @@ function renderHealthRankPage() {
           <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
           <p class="eyebrow">Active Inventory</p>
           <h1>Unit health rank</h1>
-          <p class="detail-subtitle">Every live item ranked by business urgency: stale age, missing price/photos/content, weak tracking, and ad signals.</p>
+          <p class="detail-subtitle">Live inventory ranked by marketing stage: prep, launched listings, stale creative, price tests, and channel-shift opportunities.</p>
         </div>
         <div class="detail-meta">
-          <span class="detail-pill">${ranked.length} live</span>
+          <span class="detail-pill">${listedCount} listed</span>
+          <span class="detail-pill">${prepCount} prep</span>
           <span class="detail-pill pill-hidden">${badCount} critical</span>
           <span class="detail-pill">${warnCount} watch</span>
           <span class="detail-pill pill-public">${okCount} healthy</span>
@@ -688,8 +697,8 @@ function renderHealthRankPage() {
         <div class="health-rank-header">
           <span>Score</span>
           <span>Item</span>
-          <span>Category</span>
-          <span>Age</span>
+          <span>Stage</span>
+          <span>Listed</span>
           <span>Advice</span>
         </div>
         ${
@@ -715,11 +724,24 @@ function fullHealthRankRow(entry) {
           ${entry.reasons.map((reason) => `<span>${escapeHtml(reason)}</span>`).join("")}
         </div>
       </div>
-      <div>${escapeHtml(entry.categoryLabel)}</div>
-      <div>${entry.ageDays == null ? "No date" : `${entry.ageDays} days`}</div>
+      <div>
+        <strong class="rank-stage">${escapeHtml(entry.stage)}</strong>
+        <span class="rank-stage-category">${escapeHtml(entry.categoryLabel)}</span>
+      </div>
+      <div>${entry.isListed ? `${entry.ageDays} days` : "Not listed yet"}</div>
       <div>${escapeHtml(entry.primaryAdvice)}</div>
     </article>
   `;
+}
+
+function compareHealthRankEntries(left, right) {
+  const severityOrder = { bad: 0, warn: 1, ok: 2, prep: 3 };
+  const leftOrder = severityOrder[left.severity] ?? 2;
+  const rightOrder = severityOrder[right.severity] ?? 2;
+  if (leftOrder !== rightOrder) {
+    return leftOrder - rightOrder;
+  }
+  return right.score - left.score || compareBoxIds(left.row.boxId, right.row.boxId, "asc");
 }
 
 function clearHealthRefresh() {
@@ -1526,19 +1548,18 @@ function buildDashboardActionQueue(rows) {
   const counts = liveRows.reduce(
     (summary, row) => {
       const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
-      const hasImages = Array.isArray(detail.images) && detail.images.length > 0;
       const hasTitle = Boolean(String(detail.title || "").trim());
       const hasDescription = Boolean(String(detail.description || "").trim());
+      const listedDate = getFirstListedDate(row, now);
       if (getActivePrice(row) <= 0) {
         summary.noPrice += 1;
       }
-      if (!hasImages) {
-        summary.noPhotos += 1;
+      if (!listedDate) {
+        summary.notListed += 1;
       }
       if (!hasTitle || !hasDescription) {
         summary.missingText += 1;
       }
-      const listedDate = getFirstListedDate(row, now);
       const actionDate = getLiveTrackingDate(row, now);
       const ageDays = listedDate ? daysBetween(listedDate, now) : null;
       const idleDays = actionDate ? daysBetween(actionDate, now) : ageDays;
@@ -1547,7 +1568,7 @@ function buildDashboardActionQueue(rows) {
       }
       return summary;
     },
-    { noPrice: 0, noPhotos: 0, missingText: 0, stale: 0 },
+    { noPrice: 0, notListed: 0, missingText: 0, stale: 0 },
   );
 
   const items = liveRows
@@ -1563,11 +1584,11 @@ function buildDashboardActionQueueItem(row, now) {
   const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
   const images = Array.isArray(detail.images) ? detail.images : [];
   const image = images.find((entry) => getImageSource(entry));
-  const hasImages = Boolean(image);
   const hasTitle = Boolean(String(detail.title || "").trim());
   const hasDescription = Boolean(String(detail.description || "").trim());
   const price = getActivePrice(row);
   const listedDate = getFirstListedDate(row, now);
+  const isListed = Boolean(listedDate);
   const actionDate = getLiveTrackingDate(row, now);
   const ageDays = listedDate ? daysBetween(listedDate, now) : null;
   const idleDays = actionDate ? daysBetween(actionDate, now) : ageDays;
@@ -1580,22 +1601,18 @@ function buildDashboardActionQueueItem(row, now) {
     action ||= "Set a real price";
     reasons.push("No usable price");
   }
-  if (!hasImages) {
-    score += 90;
-    action ||= "Add photos";
-    reasons.push("No photos");
-  }
   if (!hasTitle || !hasDescription) {
-    score += 70;
-    action ||= "Write title/description";
-    reasons.push(!hasTitle && !hasDescription ? "Missing title and description" : !hasTitle ? "Missing title" : "Missing description");
+    score += isListed ? 70 : 36;
+    action ||= isListed ? "Write title/description" : "Prep listing text";
+    reasons.push(!hasTitle && !hasDescription ? "Needs title and description" : !hasTitle ? "Needs title" : "Needs description");
   }
   if (ageDays === null) {
-    score += 32;
-    reasons.push("No listing date");
+    score += 14;
+    action ||= "Prepare for launch";
+    reasons.push("Not listed yet");
   } else if (ageDays >= STALE_LISTING_DAYS) {
     score += 55;
-    action ||= "Refresh stale listing";
+    action ||= "Refresh stale creative";
     reasons.push(`${ageDays} days listed`);
   } else if (ageDays >= 90) {
     score += 22;
@@ -1623,7 +1640,7 @@ function buildDashboardActionQueueItem(row, now) {
     reasons,
     image,
     priceLabel: price > 0 ? currencyFormatter.format(price) : "No price",
-    status: row.hidden ? "Hidden" : "Present",
+    status: row.hidden ? "Hidden" : isListed ? "Listed" : "Prep",
     score,
   };
 }
@@ -1636,13 +1653,13 @@ function renderDashboardActionQueue(queue) {
       <div>
         <p class="eyebrow">Action Queue</p>
         <h2>Work these boxes next</h2>
-        <p>Ranked from current live inventory using price, photos, listing content, age, boost, and idle-time signals.</p>
+        <p>Ranked from current live inventory using launch readiness, listing age, price, content, boost, and idle-time signals.</p>
       </div>
       <a class="button ghost" data-route href="${appPath("/lucy")}">Open Lucy</a>
     </div>
     <div class="action-queue-metrics">
       ${actionQueueMetric("No price", counts.noPrice)}
-      ${actionQueueMetric("No photos", counts.noPhotos)}
+      ${actionQueueMetric("Not listed", counts.notListed)}
       ${actionQueueMetric("Missing text", counts.missingText)}
       ${actionQueueMetric("Stale/no action", counts.stale)}
     </div>
@@ -2641,20 +2658,11 @@ function buildCatalogAnalytics(items) {
         trackingDate: listedDate,
         boostText,
         price: getActivePrice(row),
-        reason: ageDays == null ? "No listing date" : `${ageDays} days listed`,
+        reason: ageDays == null ? "Not listed yet" : `${ageDays} days listed`,
       };
     })
-    .filter((entry) => entry.ageDays == null || entry.ageDays >= STALE_LISTING_DAYS)
+    .filter((entry) => entry.ageDays != null && entry.ageDays >= STALE_LISTING_DAYS)
     .sort((left, right) => {
-      if (left.ageDays == null && right.ageDays == null) {
-        return compareBoxIds(left.row.boxId, right.row.boxId, "asc");
-      }
-      if (left.ageDays == null) {
-        return -1;
-      }
-      if (right.ageDays == null) {
-        return 1;
-      }
       return right.ageDays - left.ageDays;
     })
     .slice(0, 6);
@@ -2881,20 +2889,23 @@ function scoreLiveItem(row) {
   const detail = state.productDetails[row.boxId] || {};
   const listedDate = getFirstListedDate(row, now);
   const latestActionDate = getLiveTrackingDate(row, now);
+  const isListed = Boolean(listedDate);
   const ageDays = listedDate ? daysBetween(listedDate, now) : null;
   const idleDays = latestActionDate ? daysBetween(latestActionDate, now) : ageDays;
   const price = getActivePrice(row);
   const hasPrice = price > 0;
   const boosted = hasBoostNotes(row);
-  const hasImages = Array.isArray(detail.images) && detail.images.length > 0;
-  const hasListingContent = Boolean(String(detail.title || "").trim() || String(detail.description || "").trim());
+  const hasTitle = Boolean(String(detail.title || "").trim());
+  const hasDescription = Boolean(String(detail.description || "").trim());
+  const hasListingContent = hasTitle && hasDescription;
   const title = stripBoxIdPrefix(detail.title || row.itemName || "", row.boxId) || "Untitled item";
   const reasons = [];
+  const stage = getMarketingStage({ isListed, ageDays, idleDays, boosted, hasPrice, hasListingContent, row });
   let score = 0;
 
-  if (ageDays == null) {
-    score += 28;
-    reasons.push("No listing date");
+  if (!isListed) {
+    score += 8;
+    reasons.push("Not listed yet");
   } else if (ageDays >= 180) {
     score += 34;
     reasons.push(`${ageDays} days listed`);
@@ -2915,36 +2926,35 @@ function scoreLiveItem(row) {
     score += 24;
     reasons.push("No usable price");
   }
-  if (!boosted && ageDays != null && ageDays >= 60) {
+  if (!boosted && isListed && ageDays >= 60) {
     score += 16;
     reasons.push("No boost note");
   }
-  if (boosted && ageDays != null && ageDays >= 120) {
+  if (boosted && isListed && ageDays >= 120) {
     score += 12;
     reasons.push("Boosted but still unsold");
   }
-  if (!hasImages) {
-    score += 18;
-    reasons.push("No photos");
-  }
   if (!hasListingContent) {
-    score += 10;
-    reasons.push("Missing title/description");
+    score += isListed ? 16 : 8;
+    reasons.push(!hasTitle && !hasDescription ? "Needs title and description" : !hasTitle ? "Needs title" : "Needs description");
   }
-  if (parseCurrency(row.revised) > 0 && parseCurrency(row.revised) < parseCurrency(row.priceListed)) {
+  if (isListed && parseCurrency(row.revised) > 0 && parseCurrency(row.revised) < parseCurrency(row.priceListed)) {
     reasons.push("Already discounted");
     score += ageDays != null && ageDays >= 120 ? 8 : 2;
   }
 
-  const primaryAdvice = buildLiveAdvice({ ageDays, idleDays, boosted, hasPrice, hasImages, hasListingContent, row });
-  const quickWin = buildQuickWin({ ageDays, idleDays, boosted, hasPrice, hasImages, hasListingContent, row });
+  const primaryAdvice = buildLiveAdvice({ isListed, ageDays, idleDays, boosted, hasPrice, hasListingContent, row });
+  const quickWin = buildQuickWin({ isListed, ageDays, idleDays, boosted, hasPrice, hasListingContent, row });
 
   return {
     row,
     title,
     score,
-    severity: score >= 55 ? "bad" : score >= 30 ? "warn" : "ok",
+    severity: !isListed ? "prep" : score >= 55 ? "bad" : score >= 30 ? "warn" : "ok",
+    stage,
+    isListed,
     ageDays,
+    idleDays,
     price,
     reasons: reasons.length ? reasons : ["Looks healthy"],
     primaryAdvice,
@@ -2953,40 +2963,71 @@ function scoreLiveItem(row) {
   };
 }
 
-function buildLiveAdvice({ ageDays, boosted, hasPrice, hasImages, hasListingContent, row }) {
+function getMarketingStage({ isListed, ageDays, idleDays, boosted, hasPrice, hasListingContent, row }) {
+  if (!isListed) {
+    return "Prep";
+  }
+  if (!hasPrice || !hasListingContent) {
+    return "Fix listing";
+  }
+  if (ageDays >= 180 && boosted) {
+    return "Channel shift";
+  }
+  if (ageDays >= STALE_LISTING_DAYS) {
+    return "Creative refresh";
+  }
+  if (ageDays >= 90 && parseCurrency(row.revised) <= 0) {
+    return "Price test";
+  }
+  if (idleDays >= 45) {
+    return "Relaunch";
+  }
+  return "Monitor";
+}
+
+function buildLiveAdvice({ isListed, ageDays, boosted, hasPrice, hasListingContent, row }) {
+  if (!isListed) {
+    if (!hasPrice) {
+      return "Not listed yet. Set launch price before publishing.";
+    }
+    if (!hasListingContent) {
+      return "Not listed yet. Prepare title and description before launch.";
+    }
+    return "Not listed yet. Ready for launch when you choose a channel.";
+  }
   if (!hasPrice) {
     return "Set a real price before spending time on promotion.";
   }
-  if (!hasImages) {
-    return "Add photos first; ads without photos waste attention.";
-  }
   if (!hasListingContent) {
-    return "Improve title/description before boosting.";
-  }
-  if (ageDays == null) {
-    return "Add a platform listing date so listing age can be measured.";
+    return "Improve title/description before boosting or relisting.";
   }
   if (ageDays >= 180 && boosted) {
-    return "Stop repeating the same ad; change price, photos, title, or channel.";
+    return "Stop repeating the same ad. Change angle, price, and channel.";
   }
   if (ageDays >= STALE_LISTING_DAYS && !boosted) {
-    return "Refresh listing and test a small boost after improving title/photos.";
+    return "Refresh listing creative, then test a small boost.";
   }
   if (ageDays >= 90 && parseCurrency(row.revised) <= 0) {
-    return "Consider a revised price or bundle offer.";
+    return "Run a price test or bundle offer before more ad spend.";
   }
   return "Monitor. No urgent action from current signals.";
 }
 
-function buildQuickWin({ ageDays, idleDays, boosted, hasPrice, hasImages, hasListingContent, row }) {
-  if (hasPrice && !hasImages) {
-    return "Add photos; this is the fastest listing-quality improvement.";
+function buildQuickWin({ isListed, ageDays, idleDays, boosted, hasPrice, hasListingContent, row }) {
+  if (!isListed) {
+    if (!hasPrice) {
+      return "Prep launch: set price.";
+    }
+    if (!hasListingContent) {
+      return "Prep launch: write title and description.";
+    }
+    return "";
   }
-  if (hasImages && !hasListingContent) {
+  if (!hasListingContent) {
     return "Write a stronger title/description before paying for ads.";
   }
   if (ageDays != null && ageDays >= STALE_LISTING_DAYS && !boosted) {
-    return "Refresh listing, then try a small 3-day boost.";
+    return "Refresh creative, then try a small 3-day boost.";
   }
   if (idleDays != null && idleDays >= 45) {
     return "Update listing content or relist; no recent action is recorded.";

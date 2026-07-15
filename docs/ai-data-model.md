@@ -231,9 +231,8 @@ Live rows should be ranked by business urgency. Useful signals:
 
 - Listing age from platform listing date.
 - Days since latest action/update/boost.
-- No platform listing date.
+- No platform listing date means the item is not listed yet. Treat it as a prep/future-launch state, not a broken listing.
 - Missing numeric active price.
-- No uploaded photos.
 - Missing custom title/description.
 - No boost after long listing age.
 - Boosted repeatedly but still unsold.
@@ -242,10 +241,10 @@ Live rows should be ranked by business urgency. Useful signals:
 Suggested action logic:
 
 - No price: set a usable price before ads.
-- No photos: add photos before ads.
-- Missing title/description: improve content before ads.
+- Not listed yet: prepare price, title, description, and channel plan before launch.
+- Missing title/description on a listed item: improve content before ads or relisting.
 - Old and no boost: refresh listing, then test small 3-day boost.
-- Old and boosted: change price/photos/title/channel; promotion alone is not working.
+- Old and boosted: change price, creative angle, title, or channel; promotion alone is not working.
 - Long idle time: relist or update listing copy.
 
 ## Archived / Sold Analysis

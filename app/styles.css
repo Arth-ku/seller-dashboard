@@ -1104,6 +1104,11 @@ textarea:focus {
   color: #8a501c;
 }
 
+.severity-prep .rank-score {
+  background: rgba(100, 103, 93, 0.12);
+  color: var(--muted);
+}
+
 .rank-main strong,
 .business-mini-row strong {
   display: block;
@@ -1199,6 +1204,19 @@ textarea:focus {
   margin-top: 4px;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.rank-stage {
+  margin: 0;
+  color: var(--brand-strong);
+  font-size: 0.92rem;
+}
+
+.rank-stage-category {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .catalog-section {

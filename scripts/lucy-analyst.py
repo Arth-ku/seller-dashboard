@@ -128,41 +128,60 @@ def item_title(row: dict, details: dict) -> str:
     return strip_box_id_prefix(title, row.get("boxId")) or "Untitled item"
 
 
-def row_has_images(row: dict, details: dict) -> bool:
-    detail = details.get(str(row.get("boxId") or ""), {}) if isinstance(details, dict) else {}
-    return bool(isinstance(detail.get("images"), list) and detail.get("images"))
-
-
 def row_has_listing_content(row: dict, details: dict) -> bool:
     detail = details.get(str(row.get("boxId") or ""), {}) if isinstance(details, dict) else {}
-    return bool(str(detail.get("title") or "").strip() or str(detail.get("description") or "").strip())
+    has_title = bool(str(detail.get("title") or "").strip())
+    has_description = bool(str(detail.get("description") or "").strip())
+    return has_title and has_description
 
 
-def build_live_advice(age_days: int | None, boosted: bool, has_price: bool, has_images: bool, has_content: bool, row: dict) -> str:
+def marketing_stage(is_listed: bool, age_days: int | None, idle_days: int | None, boosted: bool, has_price: bool, has_content: bool, row: dict) -> str:
+    if not is_listed:
+        return "Prep"
+    if not has_price or not has_content:
+        return "Fix listing"
+    if age_days is not None and age_days >= 180 and boosted:
+        return "Channel shift"
+    if age_days is not None and age_days >= STALE_LISTING_DAYS:
+        return "Creative refresh"
+    if age_days is not None and age_days >= 90 and parse_currency(row.get("revised")) <= 0:
+        return "Price test"
+    if idle_days is not None and idle_days >= 45:
+        return "Relaunch"
+    return "Monitor"
+
+
+def build_live_advice(is_listed: bool, age_days: int | None, boosted: bool, has_price: bool, has_content: bool, row: dict) -> str:
+    if not is_listed:
+        if not has_price:
+            return "Not listed yet. Set launch price before publishing."
+        if not has_content:
+            return "Not listed yet. Prepare title and description before launch."
+        return "Not listed yet. Ready for launch when you choose a channel."
     if not has_price:
         return "Set a real price before spending time on promotion."
-    if not has_images:
-        return "Add photos first; ads without photos waste attention."
     if not has_content:
-        return "Improve title/description before boosting."
-    if age_days is None:
-        return "Add a platform listing date so listing age can be measured."
+        return "Improve title/description before boosting or relisting."
     if age_days >= 180 and boosted:
-        return "Stop repeating the same ad; change price, photos, title, or channel."
+        return "Stop repeating the same ad. Change angle, price, and channel."
     if age_days >= STALE_LISTING_DAYS and not boosted:
-        return "Refresh listing and test a small boost after improving title/photos."
+        return "Refresh listing creative, then test a small boost."
     if age_days >= 90 and parse_currency(row.get("revised")) <= 0:
-        return "Consider a revised price or bundle offer."
+        return "Run a price test or bundle offer before more ad spend."
     return "Monitor. No urgent action from current signals."
 
 
-def build_quick_win(age_days: int | None, idle_days: int | None, boosted: bool, has_price: bool, has_images: bool, has_content: bool, row: dict) -> str:
-    if has_price and not has_images:
-        return "Add photos; this is the fastest listing-quality improvement."
-    if has_images and not has_content:
+def build_quick_win(is_listed: bool, age_days: int | None, idle_days: int | None, boosted: bool, has_price: bool, has_content: bool, row: dict) -> str:
+    if not is_listed:
+        if not has_price:
+            return "Prep launch: set price."
+        if not has_content:
+            return "Prep launch: write title and description."
+        return ""
+    if not has_content:
         return "Write a stronger title/description before paying for ads."
     if age_days is not None and age_days >= STALE_LISTING_DAYS and not boosted:
-        return "Refresh listing, then try a small 3-day boost."
+        return "Refresh creative, then try a small 3-day boost."
     if idle_days is not None and idle_days >= 45:
         return "Update listing content or relist; no recent action is recorded."
     if age_days is not None and age_days >= 120 and parse_currency(row.get("revised")) <= 0:
@@ -175,18 +194,18 @@ def build_quick_win(age_days: int | None, idle_days: int | None, boosted: bool, 
 def score_live_item(row: dict, details: dict, now: dt.datetime) -> dict:
     listed_date = first_listed_date(row, now)
     latest_date = latest_action_date(row, now)
+    is_listed = listed_date is not None
     age_days = days_between(listed_date, now) if listed_date else None
     idle_days = days_between(latest_date, now) if latest_date else age_days
     has_price = active_price(row) > 0
     boosted = has_boost_notes(row)
-    has_images = row_has_images(row, details)
     has_content = row_has_listing_content(row, details)
     reasons = []
     score = 0
 
-    if age_days is None:
-        score += 28
-        reasons.append("No listing date")
+    if not is_listed:
+        score += 8
+        reasons.append("Not listed yet")
     elif age_days >= 180:
         score += 34
         reasons.append(f"{age_days} days listed")
@@ -203,33 +222,32 @@ def score_live_item(row: dict, details: dict, now: dt.datetime) -> dict:
     if not has_price:
         score += 24
         reasons.append("No usable price")
-    if not boosted and age_days is not None and age_days >= 60:
+    if not boosted and is_listed and age_days is not None and age_days >= 60:
         score += 16
         reasons.append("No boost note")
-    if boosted and age_days is not None and age_days >= 120:
+    if boosted and is_listed and age_days is not None and age_days >= 120:
         score += 12
         reasons.append("Boosted but still unsold")
-    if not has_images:
-        score += 18
-        reasons.append("No photos")
     if not has_content:
-        score += 10
-        reasons.append("Missing title/description")
-    if parse_currency(row.get("revised")) > 0 and parse_currency(row.get("revised")) < parse_currency(row.get("priceListed")):
+        score += 16 if is_listed else 8
+        reasons.append("Needs title/description")
+    if is_listed and parse_currency(row.get("revised")) > 0 and parse_currency(row.get("revised")) < parse_currency(row.get("priceListed")):
         score += 8 if age_days is not None and age_days >= 120 else 2
         reasons.append("Already discounted")
 
-    quick_win = build_quick_win(age_days, idle_days, boosted, has_price, has_images, has_content, row)
+    quick_win = build_quick_win(is_listed, age_days, idle_days, boosted, has_price, has_content, row)
     return {
         "boxId": str(row.get("boxId") or ""),
         "title": item_title(row, details),
         "score": score,
-        "severity": "bad" if score >= 55 else "watch" if score >= 30 else "ok",
+        "severity": "prep" if not is_listed else "bad" if score >= 55 else "watch" if score >= 30 else "ok",
+        "stage": marketing_stage(is_listed, age_days, idle_days, boosted, has_price, has_content, row),
+        "isListed": is_listed,
         "ageDays": age_days,
         "idleDays": idle_days,
         "price": active_price(row),
         "reasons": reasons or ["Looks healthy"],
-        "primaryAdvice": build_live_advice(age_days, boosted, has_price, has_images, has_content, row),
+        "primaryAdvice": build_live_advice(is_listed, age_days, boosted, has_price, has_content, row),
         "quickWin": quick_win,
         "quickWinScore": (30 if quick_win else 0) + score,
     }
@@ -317,6 +335,7 @@ def build_insights() -> dict:
     health_problems = health.get("problems") if isinstance(health.get("problems"), list) else []
     bad_count = sum(1 for item in live_scores if item["severity"] == "bad")
     watch_count = sum(1 for item in live_scores if item["severity"] == "watch")
+    prep_count = sum(1 for item in live_scores if item["severity"] == "prep")
     status = (
         "bad"
         if health.get("status") == "bad" or bad_count
@@ -360,7 +379,7 @@ def build_insights() -> dict:
             "boxId": item["boxId"],
             "label": f"Box {item['boxId']}",
             "value": item["primaryAdvice"],
-            "detail": f"{item['title']} | score {item['score']} | {', '.join(item['reasons'])}",
+            "detail": f"{item['title']} | {item['stage']} | score {item['score']} | {', '.join(item['reasons'])}",
             "severity": item["severity"],
         }
         for item in live_scores[:8]
@@ -398,7 +417,7 @@ def build_insights() -> dict:
     sections = [
         {
             "title": "Unit-health priorities",
-            "summary": "Top live inventory ranked by listing age, missing price/photos/content, boost signals, and idle time.",
+            "summary": "Top live inventory ranked by marketing stage, listing age, price/content readiness, boost signals, and idle time.",
             "items": unit_health_items,
         },
         {
@@ -435,9 +454,9 @@ def build_insights() -> dict:
     ]
 
     cards = [
-        {"label": "Live items", "value": str(len(live_rows)), "detail": f"{bad_count} critical, {watch_count} watch", "severity": "bad" if bad_count else "watch" if watch_count or not rows else "ok"},
+        {"label": "Live items", "value": str(len(live_rows)), "detail": f"{bad_count} critical, {watch_count} watch, {prep_count} prep", "severity": "bad" if bad_count else "watch" if watch_count or not rows else "ok"},
         {"label": "Top unit score", "value": str(top_issue["score"]) if top_issue else "0", "detail": f"Box {top_issue['boxId']}" if top_issue else "No live inventory", "severity": top_issue["severity"] if top_issue else "watch" if not rows else "ok"},
-        {"label": "Quick wins", "value": str(len(quick_wins)), "detail": "Listing/photo/price moves Lucy can see now", "severity": "watch" if quick_wins or not rows else "ok"},
+        {"label": "Quick wins", "value": str(len(quick_wins)), "detail": "Launch, content, price, and refresh moves Lucy can see now", "severity": "watch" if quick_wins or not rows else "ok"},
         {"label": "Dashboard health", "value": str(health.get("status", "unknown")).upper(), "detail": f"{health.get('snapshotCount', 0)} snapshots today", "severity": "bad" if health.get("status") == "bad" else "watch" if health.get("status") != "ok" or health_problems else "ok"},
     ]
 
