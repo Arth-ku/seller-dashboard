@@ -1420,6 +1420,11 @@ textarea:focus {
   font-weight: 700;
 }
 
+.pill-linked {
+  background: rgba(47, 96, 190, 0.12);
+  color: #24406f;
+}
+
 .subpanel {
   border: 1px solid var(--line);
   border-radius: 22px;
@@ -1433,6 +1438,106 @@ textarea:focus {
 .subpanel h2 {
   margin: 0;
   font-size: 1.2rem;
+}
+
+.same-unit-panel {
+  background: linear-gradient(180deg, rgba(247, 250, 255, 0.92), rgba(255, 255, 255, 0.74));
+}
+
+.same-unit-heading {
+  align-items: start;
+}
+
+.same-unit-heading p {
+  max-width: 420px;
+}
+
+.same-unit-qty {
+  display: inline-grid;
+  place-items: center;
+  min-width: 72px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #24406f;
+  color: #fff;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.same-unit-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.same-unit-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(35, 36, 31, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.same-unit-meta a {
+  margin-left: 4px;
+  color: #24406f;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.same-unit-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.same-unit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(47, 96, 190, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #24406f;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.same-unit-chip small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.same-unit-chip.is-current {
+  border-color: rgba(29, 93, 79, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(29, 93, 79, 0.18);
+}
+
+.same-unit-chip.is-source {
+  background: rgba(215, 239, 233, 0.8);
+  color: var(--brand-strong);
+}
+
+.same-unit-field {
+  margin-top: 16px;
+}
+
+.same-unit-linked-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
 }
 
 .upload-zone {
@@ -2061,6 +2166,12 @@ textarea:focus {
 
   .lucy-row {
     grid-template-columns: 1fr;
+  }
+
+  .same-unit-heading,
+  .same-unit-linked-actions {
+    display: grid;
+    justify-items: start;
   }
 
   .catalog-list-item {

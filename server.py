@@ -1137,12 +1137,102 @@ def strip_box_id_prefix(text: str, box_id: str) -> str:
     return normalized_text
 
 
+def normalize_box_id(value: object) -> str:
+    return str(value or "").strip().upper()
+
+
+def find_detail_key(details: dict, box_id: object) -> str:
+    normalized = normalize_box_id(box_id)
+    if not normalized or not isinstance(details, dict):
+        return ""
+    for key in details.keys():
+        if normalize_box_id(key) == normalized:
+            return str(key)
+    return ""
+
+
+def resolve_product_source_box_id(details: dict, box_id: object) -> str:
+    if not isinstance(details, dict):
+        return str(box_id or "").strip()
+
+    key = find_detail_key(details, box_id)
+    if not key:
+        return str(box_id or "").strip()
+
+    seen = {normalize_box_id(key)}
+    current_key = key
+    for _ in range(20):
+        detail = details.get(current_key, {})
+        if not isinstance(detail, dict):
+            break
+        source_key = find_detail_key(details, detail.get("sourceBoxId"))
+        normalized_source = normalize_box_id(source_key)
+        if not source_key or not normalized_source or normalized_source in seen:
+            break
+        seen.add(normalized_source)
+        current_key = source_key
+
+    return current_key
+
+
+def same_unit_quantity(details: dict, box_id: object) -> int:
+    if not isinstance(details, dict):
+        return 1
+    source_key = resolve_product_source_box_id(details, box_id)
+    if not source_key:
+        return 1
+    count = 0
+    for key in details.keys():
+        if normalize_box_id(resolve_product_source_box_id(details, key)) == normalize_box_id(source_key):
+            count += 1
+    return max(1, count)
+
+
+def resolve_product_detail(details: dict, box_id: object) -> dict:
+    if not isinstance(details, dict):
+        return {}
+
+    key = find_detail_key(details, box_id)
+    if not key:
+        return {}
+    direct = details.get(key, {})
+    if not isinstance(direct, dict):
+        direct = {}
+
+    seen = {normalize_box_id(key)}
+    current = direct
+    for _ in range(20):
+        source = find_detail_key(details, current.get("sourceBoxId"))
+        normalized_source = normalize_box_id(source)
+        if not source or not normalized_source or normalized_source in seen:
+            break
+        source_detail = details.get(source, {})
+        if not isinstance(source_detail, dict):
+            break
+        seen.add(normalized_source)
+        current = source_detail
+
+    if current is direct:
+        return {**direct, "boxId": key, "sourceBoxId": ""}
+
+    return {
+        **direct,
+        "title": current.get("title", ""),
+        "description": current.get("description", ""),
+        "images": current.get("images", []),
+        "updatedAt": current.get("updatedAt") or direct.get("updatedAt", ""),
+        "sourceBoxId": current.get("boxId") or source,
+        "boxId": key,
+    }
+
+
 def public_product_payload(
     row: dict | None,
     detail: dict,
     box_id: str,
     request_handler,
     client_brands: tuple[str, ...] = APPAREL_BRANDS,
+    quantity: int = 1,
 ) -> dict:
     title = strip_box_id_prefix(detail.get("title", ""), box_id)
     item_name = strip_box_id_prefix((row or {}).get("itemName", ""), box_id)
@@ -1174,6 +1264,8 @@ def public_product_payload(
         "images": public_images,
         "client": detect_catalog_client(searchable_text, client_brands),
         "updatedAt": detail.get("updatedAt", ""),
+        "sourceBoxId": detail.get("sourceBoxId", ""),
+        "quantity": quantity,
     }
 
 
@@ -1607,7 +1699,7 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         details = state.get("productDetails", {})
 
         row = next((entry for entry in rows if str(entry.get("boxId", "")).upper() == box_id), None)
-        detail = details.get(box_id, {})
+        detail = resolve_product_detail(details, box_id)
 
         if not row and not detail:
             return self.respond_error(HTTPStatus.NOT_FOUND, "Product not found")
@@ -1617,7 +1709,7 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         if row and bool(row.get("hidden")):
             return self.respond_error(HTTPStatus.NOT_FOUND, "Product not found")
 
-        payload = public_product_payload(row, detail, box_id, self)
+        payload = public_product_payload(row, detail, box_id, self, quantity=same_unit_quantity(details, box_id))
         return self.respond_json(payload, extra_headers=self.public_cors_headers())
 
     def handle_public_catalog_request(self, catalog_name: str) -> None:
@@ -1635,14 +1727,14 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
         for number in range(catalog["from"], catalog["to"] + 1):
             box_id = str(number)
             row = rows_by_box_id.get(box_id)
-            detail = details.get(box_id, {})
+            detail = resolve_product_detail(details, box_id)
             if not row and not detail:
                 continue
 
             if row and bool(row.get("hidden")):
                 continue
 
-            payload = public_product_payload(row, detail, box_id, self, catalog["clients"])
+            payload = public_product_payload(row, detail, box_id, self, catalog["clients"], same_unit_quantity(details, box_id))
             payload["images"] = payload["images"][:1]
             if not has_public_catalog_content(payload):
                 continue

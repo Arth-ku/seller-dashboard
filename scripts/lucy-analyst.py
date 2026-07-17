@@ -122,14 +122,66 @@ def strip_box_id_prefix(title: object, box_id: object) -> str:
     return re.sub(rf"^{re.escape(box)}(?:\b|\s*[-:)#.(]\s*)", "", text, flags=re.I).strip()
 
 
+def normalize_box_id(value: object) -> str:
+    return str(value or "").strip().upper()
+
+
+def find_detail_key(details: dict, box_id: object) -> str:
+    normalized = normalize_box_id(box_id)
+    if not normalized or not isinstance(details, dict):
+        return ""
+    for key in details.keys():
+        if normalize_box_id(key) == normalized:
+            return str(key)
+    return ""
+
+
+def resolve_detail(details: dict, box_id: object) -> dict:
+    if not isinstance(details, dict):
+        return {}
+    key = find_detail_key(details, box_id)
+    if not key:
+        return {}
+
+    direct = details.get(key, {})
+    if not isinstance(direct, dict):
+        direct = {}
+
+    seen = {normalize_box_id(key)}
+    current = direct
+    source = ""
+    for _ in range(20):
+        source = find_detail_key(details, current.get("sourceBoxId"))
+        normalized_source = normalize_box_id(source)
+        if not source or not normalized_source or normalized_source in seen:
+            break
+        source_detail = details.get(source, {})
+        if not isinstance(source_detail, dict):
+            break
+        seen.add(normalized_source)
+        current = source_detail
+
+    if current is direct:
+        return direct
+
+    return {
+        **direct,
+        "title": current.get("title", ""),
+        "description": current.get("description", ""),
+        "images": current.get("images", []),
+        "updatedAt": current.get("updatedAt") or direct.get("updatedAt", ""),
+        "sourceBoxId": source,
+    }
+
+
 def item_title(row: dict, details: dict) -> str:
-    detail = details.get(str(row.get("boxId") or ""), {}) if isinstance(details, dict) else {}
+    detail = resolve_detail(details, row.get("boxId"))
     title = detail.get("title") or row.get("itemName") or ""
     return strip_box_id_prefix(title, row.get("boxId")) or "Untitled item"
 
 
 def row_has_listing_content(row: dict, details: dict) -> bool:
-    detail = details.get(str(row.get("boxId") or ""), {}) if isinstance(details, dict) else {}
+    detail = resolve_detail(details, row.get("boxId"))
     has_title = bool(str(detail.get("title") or "").strip())
     has_description = bool(str(detail.get("description") or "").strip())
     return has_title and has_description

@@ -59,6 +59,20 @@ Do not mix archived and live rows in the same business list. Live rows need acti
 
 CSV and Google Sheet imports must preserve the existing `hidden` value for the same Box ID. Imports refresh sheet-owned fields only; they must not make hidden public items visible again.
 
+## Product Detail State
+
+`productDetails[boxId]` stores app-owned listing content:
+
+- `title`
+- `description`
+- `images`
+- `updatedAt`
+- `sourceBoxId`
+
+When `sourceBoxId` is empty, that box owns its listing content. When `sourceBoxId` points to another Box ID, the box is a same-unit/quantity child and must inherit title, description, images, and updated time from the source box. Example: if box `676` has `sourceBoxId: "675"`, then admin, public APIs, search, listing copy/download, and Lucy health analysis should use box `675` listing content for box `676`.
+
+Do not duplicate uploaded image files for same-unit boxes. Store one source listing and resolve children through `sourceBoxId`. If a linked child is made independent, copy the current resolved title, description, and image references into that child and clear `sourceBoxId`.
+
 ## Column Meanings
 
 ### Items Name

@@ -766,7 +766,7 @@ function renderCatalogPage(catalogName) {
       if (!term) {
         return true;
       }
-      const title = state.productDetails[row.boxId]?.title || "";
+      const title = getEffectiveProductDetail(row.boxId).title || "";
       return [row.boxId, row.itemName, title, row.revised, row.priceListed]
         .join(" ")
         .toLowerCase()
@@ -857,13 +857,13 @@ function renderCatalogSection(title, rows, description, kind) {
 }
 
 function rowHasCatalogImage(row) {
-  const detail = state.productDetails[row.boxId] || {};
+  const detail = getEffectiveProductDetail(row.boxId);
   return Array.isArray(detail.images) && detail.images.length > 0;
 }
 
 function catalogCard(row) {
   const historyMode = isHistoryMode();
-  const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+  const detail = getEffectiveProductDetail(row.boxId);
   const image = detail.images && detail.images[0];
   const title =
     stripBoxIdPrefix(detail.title, row.boxId) ||
@@ -871,6 +871,7 @@ function catalogCard(row) {
     "Untitled item";
   const price = (row.revised || "").trim() || (row.priceListed || "").trim() || "No price";
   const productHref = appPath(`/${encodeURIComponent(row.boxId)}`);
+  const group = getSameUnitGroup(row.boxId);
 
   return `
     <article class="catalog-card ${row.hidden ? "is-hidden-item" : ""}">
@@ -885,6 +886,7 @@ function catalogCard(row) {
       <div class="catalog-card-body">
         <div class="catalog-card-heading">
           <a class="boxid-link" data-route href="${productHref}">${escapeHtml(row.boxId)}</a>
+          ${group.quantity > 1 ? `<span class="detail-pill pill-linked">Qty ${group.quantity}</span>` : ""}
           ${row.archived ? `<span class="detail-pill">Archived</span>` : ""}
         </div>
         <p class="catalog-card-title">${escapeHtml(title)}</p>
@@ -903,18 +905,20 @@ function catalogCard(row) {
 
 function catalogListItem(row) {
   const historyMode = isHistoryMode();
-  const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+  const detail = getEffectiveProductDetail(row.boxId);
   const title =
     stripBoxIdPrefix(detail.title, row.boxId) ||
     stripBoxIdPrefix(row.itemName || "", row.boxId) ||
     "Untitled item";
   const price = (row.revised || "").trim() || (row.priceListed || "").trim() || "No price";
   const productHref = appPath(`/${encodeURIComponent(row.boxId)}`);
+  const group = getSameUnitGroup(row.boxId);
 
   return `
     <article class="catalog-list-item ${row.hidden ? "is-hidden-item" : ""}">
       <div class="catalog-list-id">
         <a class="boxid-link" data-route href="${productHref}">${escapeHtml(row.boxId || "UNKNOWN")}</a>
+        ${group.quantity > 1 ? `<span class="detail-pill pill-linked">Qty ${group.quantity}</span>` : ""}
         ${row.archived ? `<span class="detail-pill">Archived</span>` : ""}
       </div>
       <div class="catalog-list-main">
@@ -1147,8 +1151,13 @@ function renderProductDetail(boxId) {
 
   const historyMode = isHistoryMode();
   const row = state.rows.find((entry) => entry.boxId === boxId);
-  const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
-  const imageCountText = `${detail.images.length}/${MAX_IMAGES_PER_PRODUCT} images uploaded`;
+  const detail = getEffectiveProductDetail(boxId);
+  const group = getSameUnitGroup(boxId);
+  const linkedSourceBoxId = detail.inheritedFromBoxId || "";
+  const detailLocked = historyMode || Boolean(linkedSourceBoxId);
+  const imageCountText = linkedSourceBoxId
+    ? `${detail.images.length}/${MAX_IMAGES_PER_PRODUCT} inherited images`
+    : `${detail.images.length}/${MAX_IMAGES_PER_PRODUCT} images uploaded`;
 
   main.innerHTML = `
     ${renderAdminSearchPanel()}
@@ -1184,6 +1193,8 @@ function renderProductDetail(boxId) {
             ${copyIconSvg()}
           </button>
           <div class="detail-meta">
+            ${group.quantity > 1 ? `<span class="detail-pill pill-linked">Qty ${group.quantity}</span>` : ""}
+            ${linkedSourceBoxId ? `<span class="detail-pill pill-linked">Source ${escapeHtml(linkedSourceBoxId)}</span>` : ""}
             <span class="detail-pill">${row?.archived ? "Archived" : "Present"}</span>
             <span class="detail-pill ${row?.hidden ? "pill-hidden" : "pill-public"}">${row?.hidden ? "Hidden from public" : "Public"}</span>
             <span class="detail-pill">${escapeHtml(row?.priceListed || "No listed price")}</span>
@@ -1212,9 +1223,9 @@ function renderProductDetail(boxId) {
               <p>${escapeHtml(imageCountText)}</p>
             </div>
             <label class="upload-zone">
-              <input id="image-input" type="file" accept=".webp,.jpg,.jpeg,.png,.gif,.avif,.bmp,.svg,.heic,.heif,image/webp,image/jpeg,image/png,image/gif,image/avif,image/bmp,image/svg+xml,image/heic,image/heif" multiple ${historyMode ? "disabled" : ""} />
-              <span>Upload up to ${MAX_IMAGES_PER_PRODUCT} images</span>
-              <small>Photos are stored on the server so every device can see them. Supports webp, jpg, jpeg, png, gif, avif, bmp, svg, heic, and heif.</small>
+              <input id="image-input" type="file" accept=".webp,.jpg,.jpeg,.png,.gif,.avif,.bmp,.svg,.heic,.heif,image/webp,image/jpeg,image/png,image/gif,image/avif,image/bmp,image/svg+xml,image/heic,image/heif" multiple ${detailLocked ? "disabled" : ""} />
+              <span>${escapeHtml(linkedSourceBoxId ? `Photos inherited from ${linkedSourceBoxId}` : `Upload up to ${MAX_IMAGES_PER_PRODUCT} images`)}</span>
+              <small>${escapeHtml(linkedSourceBoxId ? "Edit the source box to change this photo set." : "Photos are stored on the server so every device can see them. Supports webp, jpg, jpeg, png, gif, avif, bmp, svg, heic, and heif.")}</small>
             </label>
             <div class="image-grid">
               ${
@@ -1222,13 +1233,13 @@ function renderProductDetail(boxId) {
                   ? detail.images
                       .map(
                         (image, index) => `
-                          <figure class="image-card draggable-image-card" draggable="${historyMode ? "false" : "true"}" data-drag-image="${index}">
+                          <figure class="image-card draggable-image-card" draggable="${detailLocked ? "false" : "true"}" data-drag-image="${index}">
                             <img src="${escapeAttribute(getImageSource(image))}" alt="${escapeAttribute(image.name || `Image ${index + 1}`)}" draggable="false" />
                             <figcaption>
                               <span class="image-name">${escapeHtml(image.name || `Image ${index + 1}`)}</span>
                               <div class="image-actions">
-                                ${historyMode ? "" : `<span class="drag-hint">Drag to reorder</span>`}
-                                ${historyMode ? "" : `<button class="button-link" type="button" data-remove-image="${index}">Remove</button>`}
+                                ${detailLocked ? "" : `<span class="drag-hint">Drag to reorder</span>`}
+                                ${detailLocked ? "" : `<button class="button-link" type="button" data-remove-image="${index}">Remove</button>`}
                               </div>
                             </figcaption>
                           </figure>
@@ -1242,21 +1253,23 @@ function renderProductDetail(boxId) {
         </div>
 
         <div class="detail-column">
+          ${renderSameUnitPanel(boxId, group, detail, historyMode)}
+
           <section class="subpanel">
             <div class="subpanel-heading">
               <h2>Listing Content</h2>
-              <p>Edit manually and save when ready.</p>
+              <p>${escapeHtml(linkedSourceBoxId ? `Inherited from ${linkedSourceBoxId}.` : "Edit manually and save when ready.")}</p>
             </div>
             <label class="field">
               <span>Title</span>
-              <input id="detail-title" type="text" value="${escapeAttribute(detail.title)}" placeholder="Write a listing title" ${historyMode ? "disabled" : ""} />
+              <input id="detail-title" type="text" value="${escapeAttribute(detail.title)}" placeholder="Write a listing title" ${detailLocked ? "disabled" : ""} />
             </label>
             <label class="field">
               <span>Description</span>
-              <textarea id="detail-description" rows="10" placeholder="Write the item description" ${historyMode ? "disabled" : ""}>${escapeHtml(detail.description)}</textarea>
+              <textarea id="detail-description" rows="10" placeholder="Write the item description" ${detailLocked ? "disabled" : ""}>${escapeHtml(detail.description)}</textarea>
             </label>
             <div class="button-row">
-              <button id="save-detail-button" class="button primary" type="button" ${historyMode ? "disabled" : ""}>Save Details</button>
+              <button id="save-detail-button" class="button primary" type="button" ${detailLocked ? "disabled" : ""}>Save Details</button>
               <span class="muted-text">${escapeHtml(detail.updatedAt ? `Last saved ${new Date(detail.updatedAt).toLocaleString()}` : "Not saved yet")}</span>
             </div>
           </section>
@@ -1286,15 +1299,68 @@ function renderProductDetail(boxId) {
   bindDetailEvents(boxId);
 }
 
+function renderSameUnitPanel(boxId, group, detail, historyMode) {
+  const sourceBoxId = group.sourceBoxId || boxId;
+  const isLinked = Boolean(detail.inheritedFromBoxId);
+  const sourceHref = appPath(`/${encodeURIComponent(sourceBoxId)}`);
+  const memberChips = group.members
+    .map((member) => {
+      const isSource = normalizeBoxIdValue(member) === normalizeBoxIdValue(sourceBoxId);
+      const isCurrent = normalizeBoxIdValue(member) === normalizeBoxIdValue(boxId);
+      return `
+        <a class="same-unit-chip ${isSource ? "is-source" : ""} ${isCurrent ? "is-current" : ""}" data-route href="${appPath(`/${encodeURIComponent(member)}`)}">
+          <span>${escapeHtml(member)}</span>
+          ${isSource ? "<small>source</small>" : ""}
+        </a>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="subpanel same-unit-panel ${isLinked ? "is-linked" : ""}">
+      <div class="subpanel-heading same-unit-heading">
+        <div>
+          <h2>Same Unit Group</h2>
+          <p>${escapeHtml(isLinked ? `Using listing content from ${sourceBoxId}.` : "One listing source for matching boxes.")}</p>
+        </div>
+        <span class="same-unit-qty">Qty ${group.quantity}</span>
+      </div>
+      <div class="same-unit-meta">
+        <span>Source <a data-route href="${sourceHref}">${escapeHtml(sourceBoxId)}</a></span>
+        <span>${group.members.length} box${group.members.length === 1 ? "" : "es"}</span>
+      </div>
+      ${memberChips ? `<div class="same-unit-chips">${memberChips}</div>` : ""}
+      ${
+        isLinked
+          ? `<div class="same-unit-linked-actions">
+              <a class="button secondary" data-route href="${sourceHref}">Edit source</a>
+              <button id="same-unit-unlink" class="button ghost" type="button" ${historyMode ? "disabled" : ""}>Make independent</button>
+            </div>`
+          : `<label class="field same-unit-field">
+              <span>Linked box IDs</span>
+              <input
+                id="same-unit-boxes"
+                type="text"
+                value="${escapeAttribute(group.linkedBoxIds.join(", "))}"
+                placeholder="676, 677"
+                ${historyMode ? "disabled" : ""}
+              />
+            </label>`
+      }
+    </section>
+  `;
+}
+
 function renderAuthenticityPage(boxId) {
   const main = document.createElement("main");
   main.className = "shell";
 
   const row = state.rows.find((entry) => entry.boxId === boxId);
-  const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
+  const detail = getEffectiveProductDetail(boxId);
   const displayPrice = row?.revised?.trim() || row?.priceListed?.trim() || "No price added";
   const displayTitle = stripBoxIdPrefix(detail.title, boxId);
   const displaySubtitle = stripBoxIdPrefix(row?.itemName || "", boxId);
+  const group = getSameUnitGroup(boxId);
 
   main.innerHTML = `
     <section class="panel authenticity-panel">
@@ -1310,6 +1376,7 @@ function renderAuthenticityPage(boxId) {
           <p class="detail-subtitle">${escapeHtml(displaySubtitle || "No item name available.")}</p>
         </div>
         <div class="detail-meta">
+          ${group.quantity > 1 ? `<span class="detail-pill pill-linked">Qty ${group.quantity}</span>` : ""}
           <span class="detail-pill">${escapeHtml(displayPrice)}</span>
         </div>
       </div>
@@ -1419,6 +1486,7 @@ function adminSearchResultCard(entry) {
   const status = row.hidden ? "Hidden" : row.archived ? "Archived" : "Present";
   const firstImage = Array.isArray(detail.images) ? detail.images.find((image) => getImageSource(image)) : null;
   const imageSource = firstImage ? getImageSource(firstImage) : "";
+  const group = getSameUnitGroup(row.boxId);
   return `
     <a class="admin-search-card" data-route href="${appPath(`/${encodeURIComponent(row.boxId)}`)}">
       <span class="admin-search-card-photo">
@@ -1434,6 +1502,7 @@ function adminSearchResultCard(entry) {
         <span class="admin-search-card-subtitle">${escapeHtml(subtitle || "No title or item name available.")}</span>
         <span class="admin-search-card-meta">
           <span>${escapeHtml(status)}</span>
+          ${group.quantity > 1 ? `<span>Qty ${group.quantity}</span>` : ""}
           <span>${escapeHtml(row.revised || row.priceListed || "No price")}</span>
         </span>
       </span>
@@ -1500,7 +1569,7 @@ function findAdminSearchResults(query) {
   return pruneRows((Array.isArray(state.rows) ? state.rows : []).map(normalizeRowState))
     .map((row) => ({
       row,
-      detail: state.productDetails[row.boxId] || createEmptyDetail(row.boxId),
+      detail: getEffectiveProductDetail(row.boxId),
     }))
     .filter(({ row, detail }) =>
       [
@@ -1547,7 +1616,7 @@ function buildDashboardActionQueue(rows) {
   const liveRows = pruneRows((Array.isArray(rows) ? rows : []).map(normalizeRowState)).filter((row) => !row.archived);
   const counts = liveRows.reduce(
     (summary, row) => {
-      const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+      const detail = getEffectiveProductDetail(row.boxId);
       const hasTitle = Boolean(String(detail.title || "").trim());
       const hasDescription = Boolean(String(detail.description || "").trim());
       const listedDate = getFirstListedDate(row, now);
@@ -1581,7 +1650,7 @@ function buildDashboardActionQueue(rows) {
 }
 
 function buildDashboardActionQueueItem(row, now) {
-  const detail = state.productDetails[row.boxId] || createEmptyDetail(row.boxId);
+  const detail = getEffectiveProductDetail(row.boxId);
   const images = Array.isArray(detail.images) ? detail.images : [];
   const image = images.find((entry) => getImageSource(entry));
   const hasTitle = Boolean(String(detail.title || "").trim());
@@ -1980,8 +2049,8 @@ function bindDashboardEvents() {
       }
 
       state.rows = state.rows.filter((entry) => entry.id !== rowId);
-      if (row.boxId && state.productDetails[row.boxId]) {
-        delete state.productDetails[row.boxId];
+      if (row.boxId) {
+        removeProductDetailForBox(row.boxId);
       }
 
       await saveAppState({ rows: state.rows, productDetails: state.productDetails });
@@ -1999,6 +2068,25 @@ function bindDetailEvents(boxId) {
 
   document.querySelector("#copy-download-button")?.addEventListener("click", async () => {
     await copyListingAndDownloadImages(boxId);
+  });
+
+  document.querySelector("#same-unit-unlink")?.addEventListener("click", async () => {
+    if (isHistoryMode()) {
+      setSaveMessage("Historical snapshots are read-only.");
+      render();
+      return;
+    }
+
+    try {
+      unlinkSameUnitBox(boxId);
+      await saveProductDetails(state.productDetails);
+      state.historySnapshots = await loadHistorySnapshots();
+      setSaveMessage(`${boxId} is now independent.`, { kind: "success" });
+    } catch (error) {
+      setSaveMessage(error?.message || `Could not unlink ${boxId}.`, { kind: "warning" });
+    } finally {
+      render();
+    }
   });
 
   document.querySelector("#detail-hidden")?.addEventListener("change", async (event) => {
@@ -2026,16 +2114,23 @@ function bindDetailEvents(boxId) {
       render();
       return;
     }
+    if (isProductLinked(boxId)) {
+      setSaveMessage(`Edit source ${getListingSourceBoxId(boxId)} or make ${boxId} independent first.`, { kind: "warning" });
+      render();
+      return;
+    }
 
     const button = document.querySelector("#save-detail-button");
     setButtonSaving(button, true);
     try {
       const current = collectDetailDraft(boxId);
       current.updatedAt = new Date().toISOString();
-      state.productDetails[boxId] = current;
+      const result = applySameUnitLinks(boxId, current);
       await saveProductDetails(state.productDetails);
       state.historySnapshots = await loadHistorySnapshots();
-      setSaveMessage(`Saved details for ${boxId}.`, { kind: "success" });
+      const groupText = result.linkedBoxIds.length ? ` Qty ${result.linkedBoxIds.length + 1}.` : "";
+      const skippedText = result.skipped.length ? ` Skipped unknown: ${result.skipped.join(", ")}.` : "";
+      setSaveMessage(`Saved details for ${boxId}.${groupText}${skippedText}`, { kind: result.skipped.length ? "warning" : "success" });
     } catch (error) {
       setSaveMessage(error?.message || `Could not save details for ${boxId}.`, { kind: "warning" });
     } finally {
@@ -2050,13 +2145,19 @@ function bindDetailEvents(boxId) {
       render();
       return;
     }
+    if (isProductLinked(boxId)) {
+      event.target.value = "";
+      setSaveMessage(`Upload photos on source ${getListingSourceBoxId(boxId)}.`, { kind: "warning" });
+      render();
+      return;
+    }
 
     const files = Array.from(event.target.files || []);
     if (!files.length) {
       return;
     }
 
-    const existingCount = (state.productDetails[boxId]?.images || []).length;
+    const existingCount = (getDirectProductDetail(boxId).images || []).length;
     const remainingSlots = Math.max(0, MAX_IMAGES_PER_PRODUCT - existingCount);
     if (remainingSlots <= 0) {
       event.target.value = "";
@@ -2081,7 +2182,7 @@ function bindDetailEvents(boxId) {
       const draft = collectDetailDraft(boxId);
       draft.images = draft.images.concat(uploaded);
       draft.updatedAt = new Date().toISOString();
-      state.productDetails[boxId] = draft;
+      state.productDetails[canonicalBoxId(boxId)] = draft;
       await saveProductDetails(state.productDetails);
       state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`Uploaded and saved ${uploaded.length} image${uploaded.length === 1 ? "" : "s"} for ${boxId}.`, {
@@ -2102,12 +2203,17 @@ function bindDetailEvents(boxId) {
         render();
         return;
       }
+      if (isProductLinked(boxId)) {
+        setSaveMessage(`Remove photos on source ${getListingSourceBoxId(boxId)}.`, { kind: "warning" });
+        render();
+        return;
+      }
 
       const index = Number(event.currentTarget.dataset.removeImage);
       const current = collectDetailDraft(boxId);
       current.images = current.images.filter((_, imageIndex) => imageIndex !== index);
       current.updatedAt = new Date().toISOString();
-      state.productDetails[boxId] = current;
+      state.productDetails[canonicalBoxId(boxId)] = current;
       await saveProductDetails(state.productDetails);
       state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`Removed photo and saved ${boxId}.`, { kind: "success" });
@@ -2117,7 +2223,7 @@ function bindDetailEvents(boxId) {
 
   let draggingIndex = null;
   document.querySelectorAll("[data-drag-image]").forEach((card) => {
-    if (isHistoryMode()) {
+    if (isHistoryMode() || isProductLinked(boxId)) {
       return;
     }
 
@@ -2159,7 +2265,7 @@ function bindDetailEvents(boxId) {
       reordered.splice(targetIndex, 0, selected);
       current.images = reordered;
       current.updatedAt = new Date().toISOString();
-      state.productDetails[boxId] = current;
+      state.productDetails[canonicalBoxId(boxId)] = current;
       await saveProductDetails(state.productDetails);
       state.historySnapshots = await loadHistorySnapshots();
       setSaveMessage(`Reordered photos and saved ${boxId}.`, { kind: "success" });
@@ -2169,8 +2275,8 @@ function bindDetailEvents(boxId) {
 }
 
 async function copyListingAndDownloadImages(boxId) {
-  const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
-  const draft = collectDetailDraft(boxId);
+  const detail = getEffectiveProductDetail(boxId);
+  const draft = isProductLinked(boxId) ? detail : collectDetailDraft(boxId);
   const title = (draft.title || detail.title || "").trim();
   const description = (draft.description || detail.description || "").trim();
   const imageDownloads = (detail.images || [])
@@ -2370,11 +2476,224 @@ function createEmptyDetail(boxId) {
     description: "",
     images: [],
     updatedAt: "",
+    sourceBoxId: "",
   };
 }
 
+function normalizeBoxIdValue(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function findKnownBoxId(value) {
+  const normalized = normalizeBoxIdValue(value);
+  if (!normalized) {
+    return "";
+  }
+
+  const row = state.rows.find((entry) => normalizeBoxIdValue(entry.boxId) === normalized);
+  if (row?.boxId) {
+    return row.boxId;
+  }
+
+  const detailKey = Object.keys(state.productDetails || {}).find((key) => normalizeBoxIdValue(key) === normalized);
+  return detailKey || "";
+}
+
+function canonicalBoxId(value) {
+  return findKnownBoxId(value) || String(value || "").trim();
+}
+
+function getDirectProductDetail(boxId) {
+  const canonical = canonicalBoxId(boxId);
+  const existing = state.productDetails[canonical];
+  return {
+    ...createEmptyDetail(canonical),
+    ...(existing && typeof existing === "object" ? existing : {}),
+    boxId: canonical,
+  };
+}
+
+function getListingSourceBoxId(boxId) {
+  const start = canonicalBoxId(boxId);
+  if (!start) {
+    return "";
+  }
+
+  const seen = new Set([normalizeBoxIdValue(start)]);
+  let current = start;
+
+  for (let step = 0; step < 20; step += 1) {
+    const detail = state.productDetails[current];
+    const next = canonicalBoxId(detail?.sourceBoxId);
+    const normalizedNext = normalizeBoxIdValue(next);
+    if (!next || !normalizedNext || normalizedNext === normalizeBoxIdValue(current) || seen.has(normalizedNext)) {
+      return current;
+    }
+    seen.add(normalizedNext);
+    current = next;
+  }
+
+  return current;
+}
+
+function getEffectiveProductDetail(boxId) {
+  const canonical = canonicalBoxId(boxId);
+  const direct = getDirectProductDetail(canonical);
+  const sourceBoxId = getListingSourceBoxId(canonical);
+  if (!sourceBoxId || normalizeBoxIdValue(sourceBoxId) === normalizeBoxIdValue(canonical)) {
+    return {
+      ...direct,
+      sourceBoxId: "",
+      inheritedFromBoxId: "",
+    };
+  }
+
+  const source = getDirectProductDetail(sourceBoxId);
+  return {
+    ...direct,
+    title: source.title || "",
+    description: source.description || "",
+    images: Array.isArray(source.images) ? source.images : [],
+    updatedAt: source.updatedAt || direct.updatedAt || "",
+    sourceBoxId,
+    inheritedFromBoxId: sourceBoxId,
+    boxId: canonical,
+  };
+}
+
+function isProductLinked(boxId) {
+  const sourceBoxId = getListingSourceBoxId(boxId);
+  return Boolean(sourceBoxId) && normalizeBoxIdValue(sourceBoxId) !== normalizeBoxIdValue(canonicalBoxId(boxId));
+}
+
+function getSameUnitGroup(boxId) {
+  const sourceBoxId = getListingSourceBoxId(boxId) || canonicalBoxId(boxId);
+  const candidates = new Set([sourceBoxId]);
+  state.rows.forEach((row) => {
+    if (row.boxId) {
+      candidates.add(row.boxId);
+    }
+  });
+  Object.keys(state.productDetails || {}).forEach((key) => candidates.add(key));
+
+  const members = Array.from(candidates)
+    .filter(Boolean)
+    .filter((candidate) => normalizeBoxIdValue(getListingSourceBoxId(candidate)) === normalizeBoxIdValue(sourceBoxId))
+    .sort((left, right) => compareBoxIds(left, right, "asc"));
+
+  return {
+    sourceBoxId,
+    members,
+    linkedBoxIds: members.filter((member) => normalizeBoxIdValue(member) !== normalizeBoxIdValue(sourceBoxId)),
+    quantity: Math.max(1, members.length),
+  };
+}
+
+function parseSameUnitBoxIds(value, sourceBoxId) {
+  const sourceNormalized = normalizeBoxIdValue(sourceBoxId);
+  const parsed = [];
+  const skipped = [];
+  String(value || "")
+    .split(/[\s,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((token) => {
+      const known = findKnownBoxId(token);
+      if (!known) {
+        skipped.push(token);
+        return;
+      }
+      if (normalizeBoxIdValue(known) === sourceNormalized) {
+        return;
+      }
+      if (!parsed.some((item) => normalizeBoxIdValue(item) === normalizeBoxIdValue(known))) {
+        parsed.push(known);
+      }
+    });
+
+  return { linkedBoxIds: parsed, skipped };
+}
+
+function applySameUnitLinks(sourceBoxId, sourceDetail) {
+  const source = canonicalBoxId(sourceBoxId);
+  const input = document.querySelector("#same-unit-boxes");
+  const { linkedBoxIds, skipped } = parseSameUnitBoxIds(input?.value || "", source);
+  const desired = new Set(linkedBoxIds.map(normalizeBoxIdValue));
+
+  state.productDetails[source] = {
+    ...sourceDetail,
+    boxId: source,
+    sourceBoxId: "",
+  };
+
+  Object.entries(state.productDetails).forEach(([detailBoxId, detail]) => {
+    if (normalizeBoxIdValue(detail?.sourceBoxId) !== normalizeBoxIdValue(source)) {
+      return;
+    }
+    if (desired.has(normalizeBoxIdValue(detailBoxId))) {
+      return;
+    }
+    state.productDetails[detailBoxId] = {
+      ...createEmptyDetail(detailBoxId),
+      ...(detail && typeof detail === "object" ? detail : {}),
+      boxId: detailBoxId,
+      sourceBoxId: "",
+    };
+  });
+
+  linkedBoxIds.forEach((linkedBoxId) => {
+    const existing = getDirectProductDetail(linkedBoxId);
+    state.productDetails[linkedBoxId] = {
+      ...existing,
+      boxId: linkedBoxId,
+      sourceBoxId: source,
+    };
+  });
+
+  return { linkedBoxIds, skipped };
+}
+
+function unlinkSameUnitBox(boxId) {
+  const canonical = canonicalBoxId(boxId);
+  const effective = getEffectiveProductDetail(canonical);
+  state.productDetails[canonical] = {
+    ...createEmptyDetail(canonical),
+    ...getDirectProductDetail(canonical),
+    title: effective.title || "",
+    description: effective.description || "",
+    images: Array.isArray(effective.images) ? [...effective.images] : [],
+    updatedAt: new Date().toISOString(),
+    sourceBoxId: "",
+    boxId: canonical,
+  };
+}
+
+function removeProductDetailForBox(boxId) {
+  const canonical = canonicalBoxId(boxId);
+  const effective = getEffectiveProductDetail(canonical);
+  const normalized = normalizeBoxIdValue(canonical);
+
+  Object.entries(state.productDetails || {}).forEach(([detailBoxId, detail]) => {
+    if (normalizeBoxIdValue(detail?.sourceBoxId) !== normalized) {
+      return;
+    }
+    state.productDetails[detailBoxId] = {
+      ...createEmptyDetail(detailBoxId),
+      ...(detail && typeof detail === "object" ? detail : {}),
+      title: effective.title || "",
+      description: effective.description || "",
+      images: Array.isArray(effective.images) ? [...effective.images] : [],
+      updatedAt: new Date().toISOString(),
+      sourceBoxId: "",
+      boxId: detailBoxId,
+    };
+  });
+
+  delete state.productDetails[canonical];
+}
+
 function collectDetailDraft(boxId) {
-  const current = state.productDetails[boxId] || createEmptyDetail(boxId);
+  const current = getDirectProductDetail(boxId);
   const titleInput = document.querySelector("#detail-title");
   const descriptionInput = document.querySelector("#detail-description");
 
@@ -2886,7 +3205,7 @@ function adLessonRow(entry) {
 
 function scoreLiveItem(row) {
   const now = new Date();
-  const detail = state.productDetails[row.boxId] || {};
+  const detail = getEffectiveProductDetail(row.boxId);
   const listedDate = getFirstListedDate(row, now);
   const latestActionDate = getLiveTrackingDate(row, now);
   const isListed = Boolean(listedDate);
@@ -3042,7 +3361,7 @@ function buildQuickWin({ isListed, ageDays, idleDays, boosted, hasPrice, hasList
 }
 
 function scoreSoldItem(row) {
-  const detail = state.productDetails[row.boxId] || {};
+  const detail = getEffectiveProductDetail(row.boxId);
   const finalPrice = parseCurrency(row.finalPrice);
   const listedPrice = parseCurrency(row.priceListed);
   const expense = parseExpenseCost(row.selfExpense);
@@ -3726,12 +4045,20 @@ function moveProductDetails(previousBoxId, nextBoxId) {
   }
 
   const existing = state.productDetails[previousBoxId];
-  if (!existing) {
-    return;
+  if (existing) {
+    state.productDetails[nextBoxId] = { ...existing, boxId: nextBoxId };
+    delete state.productDetails[previousBoxId];
   }
 
-  state.productDetails[nextBoxId] = { ...existing, boxId: nextBoxId };
-  delete state.productDetails[previousBoxId];
+  Object.entries(state.productDetails || {}).forEach(([detailBoxId, detail]) => {
+    if (normalizeBoxIdValue(detail?.sourceBoxId) !== normalizeBoxIdValue(previousBoxId)) {
+      return;
+    }
+    state.productDetails[detailBoxId] = {
+      ...detail,
+      sourceBoxId: nextBoxId,
+    };
+  });
 }
 
 function buildSnapshotRow(label, value) {
