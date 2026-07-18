@@ -56,15 +56,15 @@
       "value": "83"
     },
     {
-      "detail": "76 snapshots today",
+      "detail": "80 snapshots today",
       "label": "Dashboard health",
       "severity": "watch",
-      "value": "WARN"
+      "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-18T15:15:17-04:00",
+  "generatedAt": "2026-07-18T15:45:24-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-18T15:15:17-04:00",
+  "publishedAt": "2026-07-18T15:45:24-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -179,6 +179,18 @@
     },
     {
       "items": [
+        {
+          "detail": "enabled",
+          "label": "seller-dashboard-nvme-backup.timer",
+          "severity": "bad",
+          "value": "bad - inactive"
+        },
+        {
+          "detail": "enabled",
+          "label": "seller-dashboard-backup.timer",
+          "severity": "bad",
+          "value": "bad - inactive"
+        },
         {
           "detail": "58.0 GB total, 16% free",
           "label": "Site storage",
