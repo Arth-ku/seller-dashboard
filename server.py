@@ -208,6 +208,43 @@ def ensure_app_storage() -> None:
             "CREATE INDEX IF NOT EXISTS idx_app_state_snapshots_created_at ON app_state_snapshots (created_at)"
         )
         connection.commit()
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_process_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        for key, value in (
+            ("rows", "[]"),
+            ("meta", "{}"),
+        ):
+            connection.execute(
+                "INSERT OR IGNORE INTO order_process_state (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_process_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT 'save',
+                label TEXT NOT NULL DEFAULT '',
+                rows_json TEXT NOT NULL,
+                meta_json TEXT NOT NULL,
+                row_count INTEGER NOT NULL DEFAULT 0,
+                state_hash TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_order_process_snapshots_created_at
+            ON order_process_snapshots (created_at)
+            """
+        )
+        connection.commit()
 
 
 def load_state() -> dict:
@@ -222,6 +259,205 @@ def load_state() -> dict:
         "rows": rows.get("rows", []),
         "productDetails": rows.get("productDetails", {}),
         "meta": rows.get("meta", {}),
+    }
+
+
+def load_order_process_state() -> dict:
+    ensure_app_storage()
+
+    with sqlite3.connect(DB_PATH) as connection:
+        values = {}
+        for key, value in connection.execute("SELECT key, value FROM order_process_state"):
+            values[key] = json.loads(value)
+
+    return {
+        "rows": values.get("rows", []),
+        "meta": values.get("meta", {}),
+    }
+
+
+def order_process_state_hash(state: dict) -> str:
+    payload = json.dumps(
+        {
+            "rows": state.get("rows", []),
+            "meta": state.get("meta", {}),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def create_order_process_snapshot(state: dict, reason: str = "save") -> None:
+    ensure_app_storage()
+    next_hash = order_process_state_hash(state)
+    rows = state.get("rows", [])
+    meta = state.get("meta", {})
+    created_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+    snapshot_date = created_at[:10]
+    source_name = str(meta.get("lastImportName") or "").strip() if isinstance(meta, dict) else ""
+    label = f"Order process refresh: {source_name}" if source_name else "Order process refresh"
+    is_sheet_import = reason == "sheet-import"
+
+    with sqlite3.connect(DB_PATH) as connection:
+        latest = connection.execute(
+            "SELECT state_hash FROM order_process_snapshots ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if latest and latest[0] == next_hash:
+            return
+
+        if is_sheet_import:
+            existing = connection.execute(
+                """
+                SELECT id, state_hash
+                FROM order_process_snapshots
+                WHERE reason = 'sheet-import'
+                  AND date(created_at) = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (snapshot_date,),
+            ).fetchone()
+            if existing:
+                if existing[1] == next_hash:
+                    return
+                connection.execute(
+                    """
+                    UPDATE order_process_snapshots
+                    SET created_at = ?,
+                        label = ?,
+                        rows_json = ?,
+                        meta_json = ?,
+                        row_count = ?,
+                        state_hash = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        created_at,
+                        label,
+                        json.dumps(rows),
+                        json.dumps(meta),
+                        len(rows) if isinstance(rows, list) else 0,
+                        next_hash,
+                        existing[0],
+                    ),
+                )
+                connection.commit()
+                return
+
+        connection.execute(
+            """
+            INSERT INTO order_process_snapshots (
+                created_at, reason, label, rows_json, meta_json, row_count, state_hash
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                created_at,
+                reason,
+                label,
+                json.dumps(rows),
+                json.dumps(meta),
+                len(rows) if isinstance(rows, list) else 0,
+                next_hash,
+            ),
+        )
+        connection.commit()
+
+
+def ensure_initial_order_process_snapshot(state: dict) -> None:
+    ensure_app_storage()
+    with sqlite3.connect(DB_PATH) as connection:
+        count = connection.execute("SELECT COUNT(*) FROM order_process_snapshots").fetchone()[0]
+    if count == 0 and state.get("rows"):
+        create_order_process_snapshot(state, "initial")
+
+
+def save_order_process_state(state: dict, reason: str = "save") -> None:
+    ensure_app_storage()
+    previous_state = load_order_process_state()
+    ensure_initial_order_process_snapshot(previous_state)
+    next_rows = state.get("rows", [])
+    next_meta = state.get("meta", {})
+
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.execute(
+            "UPDATE order_process_state SET value = ? WHERE key = 'rows'",
+            (json.dumps(next_rows),),
+        )
+        connection.execute(
+            "UPDATE order_process_state SET value = ? WHERE key = 'meta'",
+            (json.dumps(next_meta),),
+        )
+        connection.commit()
+
+    create_order_process_snapshot(
+        {
+            "rows": next_rows,
+            "meta": next_meta,
+        },
+        reason,
+    )
+
+
+def list_order_process_snapshots(limit: int = 365) -> list[dict]:
+    ensure_app_storage()
+    with sqlite3.connect(DB_PATH) as connection:
+        rows = connection.execute(
+            """
+            SELECT id, created_at, reason, label, row_count
+            FROM order_process_snapshots
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    return [
+        {
+            "id": f"process:{row[0]}",
+            "createdAt": row[1],
+            "date": row[1][:10],
+            "reason": row[2],
+            "label": row[3],
+            "rowCount": row[4],
+        }
+        for row in rows
+    ]
+
+
+def load_order_process_snapshot(history_id: str) -> dict | None:
+    if not history_id.startswith("process:"):
+        return None
+    try:
+        snapshot_id = int(history_id.split(":", 1)[1])
+    except ValueError:
+        return None
+
+    ensure_app_storage()
+    with sqlite3.connect(DB_PATH) as connection:
+        row = connection.execute(
+            """
+            SELECT id, created_at, reason, label, rows_json, meta_json
+            FROM order_process_snapshots
+            WHERE id = ?
+            """,
+            (snapshot_id,),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "rows": json.loads(row[4]),
+        "meta": json.loads(row[5]),
+        "snapshot": {
+            "id": f"process:{row[0]}",
+            "createdAt": row[1],
+            "date": row[1][:10],
+            "reason": row[2],
+            "label": row[3],
+        },
     }
 
 
@@ -1327,6 +1563,30 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 return self.respond_error(HTTPStatus.NOT_FOUND, "Snapshot not found")
             return self.respond_json(snapshot)
 
+        if normalized_path == "/api/order-process":
+            if not self.require_auth():
+                return None
+            return self.respond_json(load_order_process_state())
+
+        if normalized_path == "/api/order-process/history":
+            if not self.require_auth():
+                return None
+            state = load_order_process_state()
+            ensure_initial_order_process_snapshot(state)
+            return self.respond_json({"snapshots": list_order_process_snapshots()})
+
+        if normalized_path == "/api/order-process/history/state":
+            if not self.require_auth():
+                return None
+            query = parse_qs(urlparse(self.path).query)
+            history_id = query.get("id", [""])[0]
+            if not history_id:
+                return self.respond_error(HTTPStatus.BAD_REQUEST, "Invalid process history id")
+            snapshot = load_order_process_snapshot(history_id)
+            if snapshot is None:
+                return self.respond_error(HTTPStatus.NOT_FOUND, "Process snapshot not found")
+            return self.respond_json(snapshot)
+
         if normalized_path == "/api/ping":
             return self.respond_json({"ok": True})
 
@@ -1438,6 +1698,11 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
             if not self.require_auth():
                 return None
             return self.handle_google_sheet_import()
+
+        if normalized_path == "/api/order-process/import":
+            if not self.require_auth():
+                return None
+            return self.handle_order_process_import()
 
         if normalized_path == "/api/upload":
             if not self.require_auth():
@@ -1558,6 +1823,48 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 "lastImportAt": meta.get("lastImportAt", ""),
                 "lastImportName": meta.get("lastImportName", ""),
                 "message": (result.stdout or "Imported Google Sheet.").strip(),
+            }
+        )
+
+    def handle_order_process_import(self) -> None:
+        script = ROOT / "scripts" / "import-order-process-sheet.py"
+        try:
+            result = subprocess.run(
+                [sys.executable, str(script)],
+                cwd=str(ROOT),
+                env=os.environ.copy(),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return self.respond_error(
+                HTTPStatus.GATEWAY_TIMEOUT,
+                "Order process Google Sheet refresh timed out.",
+            )
+        except OSError as error:
+            return self.respond_error(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                f"Order process Google Sheet refresh failed: {error}",
+            )
+
+        if result.returncode != 0:
+            message = (
+                result.stderr or result.stdout or "Order process Google Sheet refresh failed."
+            ).strip()
+            return self.respond_error(HTTPStatus.INTERNAL_SERVER_ERROR, message)
+
+        state = load_order_process_state()
+        rows = state.get("rows", [])
+        meta = state.get("meta", {}) if isinstance(state.get("meta"), dict) else {}
+        return self.respond_json(
+            {
+                "ok": True,
+                "rowCount": len(rows) if isinstance(rows, list) else 0,
+                "lastImportAt": meta.get("lastImportAt", ""),
+                "lastImportName": meta.get("lastImportName", ""),
+                "message": (result.stdout or "Imported order process Google Sheet.").strip(),
             }
         )
 

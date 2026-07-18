@@ -196,6 +196,94 @@ export async function refreshGoogleSheet() {
   return payload;
 }
 
+export async function loadOrderProcessState() {
+  const response = await fetch(toApiUrl("/api/order-process"), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load the order process from the server.");
+  }
+
+  return response.json();
+}
+
+export async function loadOrderProcessHistory() {
+  const response = await fetch(toApiUrl("/api/order-process/history"), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load order process history.");
+  }
+
+  const payload = await response.json();
+  return Array.isArray(payload.snapshots) ? payload.snapshots : [];
+}
+
+export async function loadOrderProcessHistoryState(snapshotId) {
+  const response = await fetch(
+    toApiUrl(`/api/order-process/history/state?id=${encodeURIComponent(snapshotId)}`),
+    {
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to load the selected order process history.");
+  }
+
+  return response.json();
+}
+
+export async function refreshOrderProcessSheet() {
+  const response = await fetch(toApiUrl("/api/order-process/import"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    const error = new Error("Not authenticated.");
+    error.unauthorized = true;
+    throw error;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      payload.error || payload.message || "Failed to refresh the order process Google Sheet.",
+    );
+  }
+
+  return payload;
+}
+
 export async function saveRows(rows, options = {}) {
   await saveAppState({ rows }, options);
 }

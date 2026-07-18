@@ -41,6 +41,16 @@ That file is the canonical explanation of the owner's Google Sheet semantics:
 CSV import must be header-based, not fixed-position. The sheet may add/remove columns such as
 `Budget`, and fixed-position parsing has previously shifted business fields.
 
+Before changing the Amazon order/review/refund process page, its sheet import, return-window
+urgency, or seller exceptions, read:
+
+```text
+docs/order-review-process.md
+```
+
+That file records the complete A-Q column contract, the 30-day estimated return window, review
+submission as the minimum deadline-protection step, and the TIN-only early-listing exception.
+
 ## Live Paths And Services
 
 Known production setup:

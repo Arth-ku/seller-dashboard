@@ -21,7 +21,8 @@ import {
   saveProductDetails,
   saveRows,
   uploadImages,
-} from "./store.js?v=20260715b";
+} from "./store.js?v=20260718a";
+import { renderOrderProcessPage } from "./process.js?v=20260718a";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -245,6 +246,8 @@ function render() {
     renderHealthPage();
   } else if (route.page === "lucy") {
     renderLucyPage();
+  } else if (route.page === "process") {
+    renderOrderProcessPage({ app, appPath, basePath: BASE_PATH });
   } else if (route.page === "health-rank") {
     renderHealthRankPage();
   } else if (route.page === "catalog") {
@@ -1085,6 +1088,7 @@ function renderDashboard() {
           <button id="refresh-sheet-button" class="button primary" type="button" ${historyMode || state.isRefreshingSheet ? "disabled" : ""}>
             ${state.isRefreshingSheet ? "Refreshing..." : "Refresh now"}
           </button>
+          <a class="button ghost" data-route href="${appPath("/process")}">Order Process</a>
           <a class="button ghost" data-route href="${appPath("/lucy")}">Lucy</a>
           <a class="button ghost" data-route href="${appPath("/health-rank")}">Unit Health</a>
           <a class="button ghost" data-route href="${appPath("/units")}">Units</a>
@@ -3895,6 +3899,14 @@ function getCurrentRoute() {
   if (parts[0] === "lucy") {
     return {
       page: "lucy",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
+  if (parts[0] === "process") {
+    return {
+      page: "process",
       boxId: "",
       subpage: "",
     };

@@ -12,6 +12,8 @@ A lightweight seller inventory app with shared server-side storage, designed to 
 - Saves custom product `Title` and `Description` per box ID.
 - Provides authenticity pages like `/628/authenticity`.
 - Stores shared data in SQLite and uploaded files on disk, so multiple devices can see the same information.
+- Tracks Amazon orders through review submission, approval, seller refund, and archive on
+  `/sell/process`, including 30-day return-window urgency and daily history playback.
 
 ## Run locally
 
@@ -71,6 +73,18 @@ Archive for "sold/gone" and Hidden for "don't show this to the public right now"
 ```bash
 SELLER_DASHBOARD_PORT=8080 python3 server.py
 ```
+
+### Order review process
+
+The private order process page is:
+
+```text
+http://YOUR-PI-IP:8000/sell/process
+```
+
+It imports the review/refund Google Sheet, prioritizes active units whose reviews are closest to
+the estimated 30-day return day, and keeps process history separate from inventory history. The
+complete A-Q business contract is in `docs/order-review-process.md`.
 
 - For the exact address `http://bluezonee/sell/` to work without `:8000`, you will usually want a reverse proxy on the Pi listening on port 80 and forwarding `/sell/` to this app, or another service already handling that.
 - The hostname `bluezonee` must also resolve on your local network. That usually means router/DNS setup, `hosts` entries, or using `bluezonee.local` with mDNS/Avahi.

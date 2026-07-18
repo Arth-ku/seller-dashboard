@@ -25,6 +25,13 @@ sold-item analytics, ad-spend parsing, or financial calculations, read:
 docs/ai-data-model.md
 ```
 
+Before changing the Amazon order, review, approval, refund, return-window, or TIN-exception
+workflow, read:
+
+```text
+docs/order-review-process.md
+```
+
 That file explains what every important Google Sheet column means, including:
 
 - `Archive` as sold/history vs live inventory.

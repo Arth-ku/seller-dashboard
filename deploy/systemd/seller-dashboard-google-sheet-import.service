@@ -1,5 +1,5 @@
 [Unit]
-Description=Import Seller Dashboard CSV from Google Sheet
+Description=Import Seller Dashboard and order process CSVs from Google Sheets
 After=network-online.target
 Wants=network-online.target
 RequiresMountsFor=/home/lwarm/apps/seller-dashboard/data
@@ -10,3 +10,4 @@ User=lwarm
 WorkingDirectory=/home/lwarm/apps/seller-dashboard
 EnvironmentFile=-/etc/seller-dashboard/app.env
 ExecStart=/home/lwarm/apps/seller-dashboard/scripts/import-google-sheet-csv.py
+ExecStart=/home/lwarm/apps/seller-dashboard/scripts/import-order-process-sheet.py
