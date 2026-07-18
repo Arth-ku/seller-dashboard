@@ -56,15 +56,15 @@
       "value": "83"
     },
     {
-      "detail": "35 snapshots today",
+      "detail": "39 snapshots today",
       "label": "Dashboard health",
       "severity": "watch",
       "value": "WARN"
     }
   ],
-  "generatedAt": "2026-07-18T08:43:14-04:00",
+  "generatedAt": "2026-07-18T09:43:29-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-18T08:43:14-04:00",
+  "publishedAt": "2026-07-18T09:43:29-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,7 +183,7 @@
           "detail": "58.0 GB total, 17% free",
           "label": "Site storage",
           "severity": "watch",
-          "value": "warn - 9.9 GB free"
+          "value": "warn - 9.8 GB free"
         }
       ],
       "summary": "needs attention",
