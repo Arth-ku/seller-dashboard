@@ -1,0 +1,8 @@
+[Unit]
+Description=Mirror Seller Dashboard data and uploads to NVMe backup partition
+After=network-online.target seller-dashboard.service
+RequiresMountsFor=/srv/seller-dashboard-backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/seller-dashboard-nvme-backup.sh

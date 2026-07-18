@@ -1,9 +1,9 @@
 [Unit]
-Description=Run Seller Dashboard SQLite backups regularly
+Description=Refresh the Seller Dashboard daily restore point every 6 hours
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=30min
+OnUnitActiveSec=6h
 Persistent=true
 Unit=seller-dashboard-backup.service
 

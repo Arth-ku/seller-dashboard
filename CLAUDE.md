@@ -223,6 +223,19 @@ User: lwarm
 
 Do not write passwords into this file.
 
+## Storage And Backup Contract
+
+Before changing uploads, SQLite backup paths, NVMe mirror behavior, retention, mounts, or storage
+cleanup, read:
+
+```text
+docs/storage-layout.md
+```
+
+The NVMe backup and shared-storage partitions are on the same physical drive. Live images remain
+on the system disk until an independent backup destination exists or their size becomes material.
+SQLite restore points use layered retention on the NVMe: hourly for 7 days and daily for 30 days.
+
 ## Common Commands
 
 Run health checks:

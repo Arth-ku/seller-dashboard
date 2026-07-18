@@ -32,6 +32,13 @@ workflow, read:
 docs/order-review-process.md
 ```
 
+Before changing uploads, SQLite backup locations, NVMe retention, mount paths, or storage
+cleanup, read:
+
+```text
+docs/storage-layout.md
+```
+
 That file explains what every important Google Sheet column means, including:
 
 - `Archive` as sold/history vs live inventory.

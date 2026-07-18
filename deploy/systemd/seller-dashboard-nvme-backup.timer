@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Seller Dashboard NVMe mirror backups hourly
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+Persistent=true
+Unit=seller-dashboard-nvme-backup.service
+
+[Install]
+WantedBy=timers.target

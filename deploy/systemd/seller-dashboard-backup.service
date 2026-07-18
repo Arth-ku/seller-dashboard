@@ -1,7 +1,7 @@
 [Unit]
 Description=Back up Seller Dashboard SQLite database
 After=local-fs.target
-RequiresMountsFor=/home/lwarm/apps/seller-dashboard/data
+RequiresMountsFor=/home/lwarm/apps/seller-dashboard/data /srv/seller-dashboard-backup
 
 [Service]
 Type=oneshot

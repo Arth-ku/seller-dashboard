@@ -89,6 +89,13 @@ complete A-Q business contract is in `docs/order-review-process.md`.
 - For the exact address `http://bluezonee/sell/` to work without `:8000`, you will usually want a reverse proxy on the Pi listening on port 80 and forwarding `/sell/` to this app, or another service already handling that.
 - The hostname `bluezonee` must also resolve on your local network. That usually means router/DNS setup, `hosts` entries, or using `bluezonee.local` with mDNS/Avahi.
 
+### Storage and backups
+
+Live database and image files stay on the system disk. The NVMe backup partition stores the
+current mirror plus layered SQLite recovery points: hourly for seven days and daily for 30 days.
+The two NVMe partitions share one physical drive, so live images are not moved there without a
+separate backup destination. See `docs/storage-layout.md` for the complete contract.
+
 ## Health journal for bots
 
 The app exposes a manual health page and read-only health JSON for bots and remote checks.
