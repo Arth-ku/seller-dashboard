@@ -2,35 +2,35 @@
   "actions": [
     {
       "boxId": "3",
-      "evidence": "194 days listed; 93 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "195 days listed; 94 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
       "boxId": "1",
-      "evidence": "492 days listed; 492 days no action; No boost note; Needs title/description",
+      "evidence": "493 days listed; 493 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 1: hdmi transmitter"
     },
     {
       "boxId": "2",
-      "evidence": "472 days listed; 303 days no action; No boost note; Needs title/description",
+      "evidence": "473 days listed; 304 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 2: Ev charger 1lvl"
     },
     {
       "boxId": "407",
-      "evidence": "346 days listed; 346 days no action; No boost note; Needs title/description",
+      "evidence": "347 days listed; 347 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
     },
     {
       "boxId": "419",
-      "evidence": "351 days listed; 351 days no action; No boost note; Needs title/description",
+      "evidence": "352 days listed; 352 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 419: table outdoor HPDE x2"
@@ -41,7 +41,7 @@
       "detail": "11 critical, 7 watch, 120 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "165"
+      "value": "164"
     },
     {
       "detail": "Box 3",
@@ -56,71 +56,71 @@
       "value": "83"
     },
     {
-      "detail": "114 snapshots today",
+      "detail": "2 snapshots today",
       "label": "Dashboard health",
-      "severity": "watch",
+      "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-18T23:47:25-04:00",
+  "generatedAt": "2026-07-19T00:17:39-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-18T23:47:25-04:00",
+  "publishedAt": "2026-07-19T00:17:39-04:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
           "boxId": "3",
-          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 194 days listed, 93 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 195 days listed, 94 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "1",
-          "detail": "hdmi transmitter | Fix listing | score 76 | 492 days listed, 492 days no action, No boost note, Needs title/description",
+          "detail": "hdmi transmitter | Fix listing | score 76 | 493 days listed, 493 days no action, No boost note, Needs title/description",
           "label": "Box 1",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "2",
-          "detail": "Ev charger 1lvl | Fix listing | score 76 | 472 days listed, 303 days no action, No boost note, Needs title/description",
+          "detail": "Ev charger 1lvl | Fix listing | score 76 | 473 days listed, 304 days no action, No boost note, Needs title/description",
           "label": "Box 2",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "407",
-          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Fix listing | score 76 | 346 days listed, 346 days no action, No boost note, Needs title/description",
+          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Fix listing | score 76 | 347 days listed, 347 days no action, No boost note, Needs title/description",
           "label": "Box 407",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "419",
-          "detail": "table outdoor HPDE x2 | Fix listing | score 76 | 351 days listed, 351 days no action, No boost note, Needs title/description",
+          "detail": "table outdoor HPDE x2 | Fix listing | score 76 | 352 days listed, 352 days no action, No boost note, Needs title/description",
           "label": "Box 419",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "515",
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 240 days listed, 240 days no action, No boost note, Needs title/description",
+          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 241 days listed, 241 days no action, No boost note, Needs title/description",
           "label": "Box 515",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "520",
-          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 213 days listed, 213 days no action, No boost note, Needs title/description",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 214 days listed, 214 days no action, No boost note, Needs title/description",
           "label": "Box 520",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "582",
-          "detail": "HAS 3 (594, 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 71 | 151 days listed, 61 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "HAS 3 (594, 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 71 | 152 days listed, 62 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 582",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
@@ -180,25 +180,13 @@
     {
       "items": [
         {
-          "detail": "enabled",
-          "label": "seller-dashboard-nvme-backup.timer",
-          "severity": "bad",
-          "value": "bad - inactive"
-        },
-        {
-          "detail": "enabled",
-          "label": "seller-dashboard-backup.timer",
-          "severity": "bad",
-          "value": "bad - inactive"
-        },
-        {
-          "detail": "58.0 GB total, 16% free",
-          "label": "Site storage",
-          "severity": "watch",
-          "value": "warn - 9.0 GB free"
+          "detail": "2 snapshots reviewed.",
+          "label": "Health journal",
+          "severity": "ok",
+          "value": "No dashboard health problems in today's journal."
         }
       ],
-      "summary": "needs attention",
+      "summary": "all ok",
       "title": "Dashboard health"
     },
     {
@@ -207,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "256 sold / $52502"
+          "value": "257 sold / $52812"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -233,13 +221,13 @@
     }
   ],
   "source": {
-    "healthDate": "2026-07-18",
+    "healthDate": "2026-07-19",
     "kind": "lucy-analyst",
-    "liveCount": 165,
+    "liveCount": 164,
     "publishedBy": "lucy-analyst",
     "rowCount": 476,
-    "soldCount": 311
+    "soldCount": 312
   },
   "status": "bad",
-  "summary": "165 live items across Apparel: 101, HVAC: 20, Units: 44. 83 quick wins. dashboard health: needs attention."
+  "summary": "164 live items across Apparel: 101, HVAC: 20, Units: 43. 83 quick wins. dashboard health: all ok."
 }
