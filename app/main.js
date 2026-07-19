@@ -2826,7 +2826,7 @@ function renderCatalogAnalytics(items) {
         <div class="analysis-heading">
           <div>
             <h2>Sold analysis</h2>
-            <p>Archived items by channel, price, expense, and ad notes for ${escapeHtml(periodLabel)}.</p>
+            <p>Sold items by channel, price, expense, and ad notes for ${escapeHtml(periodLabel)}.</p>
           </div>
           <span class="detail-pill">${sold.count} sold</span>
         </div>
@@ -2897,25 +2897,25 @@ function renderCatalogAnalytics(items) {
 
 function renderBusinessPriorityBoard(items) {
   const liveScores = items
-    .filter((row) => !row.archived)
+    .filter((row) => !isSoldForAnalysis(row))
     .map(scoreLiveItem)
     .sort((left, right) => right.score - left.score);
   const visibleLiveScores = liveScores.slice(0, 6);
   const hiddenLiveScores = liveScores.slice(6);
   const quickWins = items
-    .filter((row) => !row.archived)
+    .filter((row) => !isSoldForAnalysis(row))
     .map(scoreLiveItem)
     .filter((entry) => entry.quickWin)
     .sort((left, right) => right.quickWinScore - left.quickWinScore)
     .slice(0, 4);
   const soldWinners = items
-    .filter((row) => row.archived)
+    .filter(isSoldForAnalysis)
     .map(scoreSoldItem)
     .filter((entry) => entry.score > 0)
     .sort((left, right) => right.score - left.score)
     .slice(0, 5);
   const adLessons = items
-    .filter((row) => row.archived && hasBoostNotes(row))
+    .filter((row) => isSoldForAnalysis(row) && hasBoostNotes(row))
     .map(scoreSoldItem)
     .sort((left, right) => right.adSignalScore - left.adSignalScore)
     .slice(0, 5);
@@ -2970,8 +2970,8 @@ function renderBusinessPriorityBoard(items) {
 }
 
 function buildCatalogAnalytics(items) {
-  const liveRows = items.filter((row) => !row.archived);
-  const allSoldRows = items.filter((row) => row.archived);
+  const liveRows = items.filter((row) => !isSoldForAnalysis(row));
+  const allSoldRows = items.filter(isSoldForAnalysis);
   const soldRows = filterSoldRowsByPeriod(allSoldRows);
   const now = new Date();
 
@@ -3053,7 +3053,7 @@ function renderYearOptions(items) {
   const currentYear = CURRENT_SALES_WEEK.year;
   const years = new Set([currentYear, Number(state.salesPeriodYear) || currentYear]);
   items
-    .filter((row) => row.archived)
+    .filter(isSoldForAnalysis)
     .forEach((row) => {
       const soldDate = parseLooseDate(row.soldDay);
       if (soldDate) {
@@ -3629,6 +3629,10 @@ function parseLooseDateForWeek(value, weekRange, fallbackYear) {
     }
   }
   return parseDateParts(match[1], match[2], String(fallbackYear), new Date(fallbackYear, 0, 1));
+}
+
+function isSoldForAnalysis(row) {
+  return Boolean(row?.archived || String(row?.soldDay || "").trim());
 }
 
 function filterSoldRowsByPeriod(rows) {
