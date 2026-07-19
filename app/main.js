@@ -34,7 +34,7 @@ const MAX_IMAGES_PER_PRODUCT = 30;
 const HEALTH_REFRESH_MS = 15000;
 const LUCY_REFRESH_MS = 60000;
 const STALE_LISTING_DAYS = 150;
-const SALES_WEEKS_PER_YEAR = 52;
+const CURRENT_SALES_WEEK = getSalesWeekInfo(new Date());
 
 // Admin category views. These pages show every matching item, including hidden ones.
 // Public catalog pages on authenticitycheck.net remain separate for HVAC/Apparel.
@@ -84,9 +84,9 @@ const state = {
   historySnapshots: [],
   viewingSnapshot: null,
   salesPeriodMode: "week",
-  salesPeriodYear: new Date().getFullYear(),
+  salesPeriodYear: CURRENT_SALES_WEEK.year,
   salesPeriodMonth: new Date().getMonth() + 1,
-  salesPeriodWeek: getSalesWeekNumber(new Date()),
+  salesPeriodWeek: CURRENT_SALES_WEEK.week,
   saveToast: null,
   isRefreshingSheet: false,
   adminSearchQuery: "",
@@ -988,7 +988,11 @@ function bindCatalogEvents(catalogName) {
   });
 
   document.querySelector("#sales-period-year")?.addEventListener("change", (event) => {
-    state.salesPeriodYear = Number(event.target.value) || new Date().getFullYear();
+    state.salesPeriodYear = Number(event.target.value) || CURRENT_SALES_WEEK.year;
+    state.salesPeriodWeek = Math.min(
+      Number(state.salesPeriodWeek) || 1,
+      getSalesWeeksInYear(state.salesPeriodYear),
+    );
     render();
   });
 
@@ -3046,7 +3050,7 @@ function analysisMetric(label, value) {
 }
 
 function renderYearOptions(items) {
-  const currentYear = new Date().getFullYear();
+  const currentYear = CURRENT_SALES_WEEK.year;
   const years = new Set([currentYear, Number(state.salesPeriodYear) || currentYear]);
   items
     .filter((row) => row.archived)
@@ -3077,7 +3081,8 @@ function renderMonthOptions() {
 
 function renderWeekOptions() {
   const options = [];
-  for (let week = 1; week <= SALES_WEEKS_PER_YEAR; week += 1) {
+  const weekCount = getSalesWeeksInYear(getSelectedSalesYear());
+  for (let week = 1; week <= weekCount; week += 1) {
     const range = getSelectedYearWeekRange(week);
     const label = range ? `Week ${week} (${formatSalesWeekRange(range)})` : `Week ${week}`;
     options.push(
@@ -3603,6 +3608,29 @@ function parseLooseDate(value, now = new Date()) {
   return match ? parseDateParts(match[1], match[2], match[3], now) : null;
 }
 
+function parseLooseDateForWeek(value, weekRange, fallbackYear) {
+  const match = String(value || "").match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (!match) {
+    return null;
+  }
+  if (match[3]) {
+    return parseDateParts(match[1], match[2], match[3], new Date(fallbackYear, 0, 1));
+  }
+
+  const candidateYears = new Set([
+    weekRange.start.getFullYear(),
+    weekRange.end.getFullYear(),
+    fallbackYear,
+  ]);
+  for (const year of candidateYears) {
+    const candidate = parseDateParts(match[1], match[2], String(year), new Date(year, 0, 1));
+    if (candidate && candidate >= weekRange.start && candidate <= weekRange.end) {
+      return candidate;
+    }
+  }
+  return parseDateParts(match[1], match[2], String(fallbackYear), new Date(fallbackYear, 0, 1));
+}
+
 function filterSoldRowsByPeriod(rows) {
   const mode = state.salesPeriodMode || "all";
   if (mode === "all") {
@@ -3615,7 +3643,10 @@ function filterSoldRowsByPeriod(rows) {
   const weekRange = mode === "week" && selectedWeek ? getSelectedYearWeekRange(selectedWeek) : null;
 
   return rows.filter((row) => {
-    const soldDate = parseLooseDate(row.soldDay, new Date(year, month - 1, 1));
+    const soldDate =
+      mode === "week" && weekRange
+        ? parseLooseDateForWeek(row.soldDay, weekRange, year)
+        : parseLooseDate(row.soldDay, new Date(year, month - 1, 1));
     if (!soldDate) {
       return false;
     }
@@ -3655,7 +3686,7 @@ function getSalesPeriodLabel() {
 }
 
 function getSelectedSalesYear() {
-  return Number(state.salesPeriodYear) || new Date().getFullYear();
+  return Number(state.salesPeriodYear) || CURRENT_SALES_WEEK.year;
 }
 
 function getSelectedSalesMonth() {
@@ -3669,29 +3700,39 @@ function parseSelectedSalesWeek() {
     return null;
   }
   const week = Number(raw);
-  return Number.isInteger(week) && week >= 1 && week <= SALES_WEEKS_PER_YEAR ? week : null;
+  return Number.isInteger(week) && week >= 1 && week <= getSalesWeeksInYear(getSelectedSalesYear())
+    ? week
+    : null;
 }
 
-function getSalesWeekNumber(date) {
-  const year = date.getFullYear();
-  const startUtc = Date.UTC(year, 0, 1);
-  const dateUtc = Date.UTC(year, date.getMonth(), date.getDate());
-  const dayOfYear = Math.floor((dateUtc - startUtc) / (24 * 60 * 60 * 1000)) + 1;
-  return Math.min(SALES_WEEKS_PER_YEAR, Math.ceil(dayOfYear / 7));
+function getSalesWeekInfo(date) {
+  const weekDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = weekDate.getUTCDay() || 7;
+  weekDate.setUTCDate(weekDate.getUTCDate() + 4 - day);
+  const year = weekDate.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil(((weekDate.getTime() - yearStart.getTime()) / (24 * 60 * 60 * 1000) + 1) / 7);
+  return { year, week };
+}
+
+function getSalesWeeksInYear(year) {
+  return getSalesWeekInfo(new Date(year, 11, 28)).week;
 }
 
 function getSelectedYearWeekRange(week) {
   const weekNumber = Number(week);
-  if (!Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > SALES_WEEKS_PER_YEAR) {
+  const year = getSelectedSalesYear();
+  if (!Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > getSalesWeeksInYear(year)) {
     return null;
   }
 
-  const year = getSelectedSalesYear();
-  const start = new Date(year, 0, (weekNumber - 1) * 7 + 1);
-  const end =
-    weekNumber === SALES_WEEKS_PER_YEAR
-      ? new Date(year, 11, 31, 23, 59, 59, 999)
-      : new Date(year, 0, weekNumber * 7, 23, 59, 59, 999);
+  const januaryFourth = new Date(year, 0, 4);
+  const januaryFourthDay = januaryFourth.getDay() || 7;
+  const start = new Date(year, 0, 4 - januaryFourthDay + 1 + (weekNumber - 1) * 7);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
   return {
     start,
     end,
