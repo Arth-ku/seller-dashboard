@@ -2,6 +2,7 @@ const defaultState = {
   rows: [],
   productDetails: {},
   meta: {},
+  cardManagement: {},
 };
 
 let cachedState = { ...defaultState };
@@ -72,6 +73,8 @@ export async function loadAppState() {
     productDetails:
       payload.productDetails && typeof payload.productDetails === "object" ? payload.productDetails : {},
     meta: payload.meta && typeof payload.meta === "object" ? payload.meta : {},
+    cardManagement:
+      payload.cardManagement && typeof payload.cardManagement === "object" ? payload.cardManagement : {},
   };
 
   return { ...cachedState };

@@ -23,6 +23,7 @@ import {
   uploadImages,
 } from "./store.js?v=20260718a";
 import { renderOrderProcessPage } from "./process.js?v=20260718a";
+import { normalizeCardManagement, renderCardManagement } from "./card-management.js?v=20260720a";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -74,6 +75,7 @@ const state = {
   rows: [],
   productDetails: {},
   meta: {},
+  cardManagement: {},
   search: "",
   archiveFilter: "present",
   boxSort: "desc",
@@ -148,6 +150,7 @@ async function loadAndRender() {
     state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
     state.productDetails = stored.productDetails;
     state.meta = stored.meta;
+    state.cardManagement = normalizeCardManagement(stored.cardManagement);
     state.viewingSnapshot = null;
     state.historySnapshots = await loadHistorySnapshots();
 
@@ -243,7 +246,19 @@ function render() {
   clearHealthRefresh();
   clearLucyRefresh();
 
-  if (route.page === "health") {
+  if (route.page === "cards") {
+    renderCardManagement(app, {
+      value: state.cardManagement,
+      inventoryPath: appPath("/"),
+      cardPath: appPath("/cards"),
+      onNavigate: navigate,
+      onSave: async (cardManagement) => {
+        state.cardManagement = cardManagement;
+        await saveAppState({ cardManagement });
+      },
+      onMessage: setSaveMessage,
+    });
+  } else if (route.page === "health") {
     renderHealthPage();
   } else if (route.page === "lucy") {
     renderLucyPage();
@@ -1045,6 +1060,10 @@ function renderDashboard() {
   const actionQueue = buildDashboardActionQueue(rows);
 
   main.innerHTML = `
+    <nav class="dashboard-nav" aria-label="Seller dashboard sections">
+      <a class="active" data-route href="${appPath("/")}">Inventory</a>
+      <a data-route href="${appPath("/cards")}">Card Management</a>
+    </nav>
     ${
       historyMode
         ? `<section class="history-banner">
@@ -3964,6 +3983,14 @@ function getCurrentRoute() {
   if (parts[0] === "health-rank") {
     return {
       page: "health-rank",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
+  if (parts[0] === "cards") {
+    return {
+      page: "cards",
       boxId: "",
       subpage: "",
     };

@@ -183,6 +183,7 @@ def ensure_app_storage() -> None:
             ("rows", "[]"),
             ("productDetails", "{}"),
             ("meta", "{}"),
+            ("cardManagement", "{}"),
         ):
             connection.execute(
                 "INSERT OR IGNORE INTO app_state (key, value) VALUES (?, ?)",
@@ -259,6 +260,7 @@ def load_state() -> dict:
         "rows": rows.get("rows", []),
         "productDetails": rows.get("productDetails", {}),
         "meta": rows.get("meta", {}),
+        "cardManagement": rows.get("cardManagement", {}),
     }
 
 
@@ -1224,6 +1226,7 @@ def save_state(state: dict, reason: str = "save") -> None:
     next_rows = state.get("rows", [])
     next_details = state.get("productDetails", {})
     next_meta = state.get("meta", {})
+    next_card_management = state.get("cardManagement", {})
 
     with sqlite3.connect(DB_PATH) as connection:
         connection.execute("UPDATE app_state SET value = ? WHERE key = 'rows'", (json.dumps(next_rows),))
@@ -1232,6 +1235,10 @@ def save_state(state: dict, reason: str = "save") -> None:
             (json.dumps(next_details),),
         )
         connection.execute("UPDATE app_state SET value = ? WHERE key = 'meta'", (json.dumps(next_meta),))
+        connection.execute(
+            "UPDATE app_state SET value = ? WHERE key = 'cardManagement'",
+            (json.dumps(next_card_management),),
+        )
         connection.commit()
 
     cleanup_orphaned_uploads(previous_state.get("productDetails", {}), next_details)
@@ -1680,6 +1687,7 @@ class SellerDashboardHandler(SimpleHTTPRequestHandler):
                 "rows": payload.get("rows", []),
                 "productDetails": payload.get("productDetails", {}),
                 "meta": payload.get("meta", {}),
+                "cardManagement": payload.get("cardManagement", {}),
             },
             str(payload.get("saveReason") or "save"),
         )
