@@ -2,35 +2,35 @@
   "actions": [
     {
       "boxId": "3",
-      "evidence": "195 days listed; 94 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "196 days listed; 95 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
       "boxId": "1",
-      "evidence": "493 days listed; 493 days no action; No boost note; Needs title/description",
+      "evidence": "494 days listed; 494 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 1: hdmi transmitter"
     },
     {
       "boxId": "2",
-      "evidence": "473 days listed; 304 days no action; No boost note; Needs title/description",
+      "evidence": "474 days listed; 305 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 2: Ev charger 1lvl"
     },
     {
       "boxId": "407",
-      "evidence": "347 days listed; 347 days no action; No boost note; Needs title/description",
+      "evidence": "348 days listed; 348 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
     },
     {
       "boxId": "419",
-      "evidence": "352 days listed; 352 days no action; No boost note; Needs title/description",
+      "evidence": "353 days listed; 353 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 419: table outdoor HPDE x2"
@@ -56,71 +56,71 @@
       "value": "83"
     },
     {
-      "detail": "95 snapshots today",
+      "detail": "2 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-19T23:54:59-04:00",
+  "generatedAt": "2026-07-20T00:25:09-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-19T23:54:59-04:00",
+  "publishedAt": "2026-07-20T00:25:09-04:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
           "boxId": "3",
-          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 195 days listed, 94 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 196 days listed, 95 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "1",
-          "detail": "hdmi transmitter | Fix listing | score 76 | 493 days listed, 493 days no action, No boost note, Needs title/description",
+          "detail": "hdmi transmitter | Fix listing | score 76 | 494 days listed, 494 days no action, No boost note, Needs title/description",
           "label": "Box 1",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "2",
-          "detail": "Ev charger 1lvl | Fix listing | score 76 | 473 days listed, 304 days no action, No boost note, Needs title/description",
+          "detail": "Ev charger 1lvl | Fix listing | score 76 | 474 days listed, 305 days no action, No boost note, Needs title/description",
           "label": "Box 2",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "407",
-          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Fix listing | score 76 | 347 days listed, 347 days no action, No boost note, Needs title/description",
+          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Fix listing | score 76 | 348 days listed, 348 days no action, No boost note, Needs title/description",
           "label": "Box 407",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "419",
-          "detail": "table outdoor HPDE x2 | Fix listing | score 76 | 352 days listed, 352 days no action, No boost note, Needs title/description",
+          "detail": "table outdoor HPDE x2 | Fix listing | score 76 | 353 days listed, 353 days no action, No boost note, Needs title/description",
           "label": "Box 419",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "515",
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 241 days listed, 241 days no action, No boost note, Needs title/description",
+          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 242 days listed, 242 days no action, No boost note, Needs title/description",
           "label": "Box 515",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "520",
-          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 214 days listed, 214 days no action, No boost note, Needs title/description",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 215 days listed, 215 days no action, No boost note, Needs title/description",
           "label": "Box 520",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "582",
-          "detail": "HAS 3 (594, 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 71 | 152 days listed, 62 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "HAS 3 (594, 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 71 | 153 days listed, 63 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 582",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "95 snapshots reviewed.",
+          "detail": "2 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -221,7 +221,7 @@
     }
   ],
   "source": {
-    "healthDate": "2026-07-19",
+    "healthDate": "2026-07-20",
     "kind": "lucy-analyst",
     "liveCount": 164,
     "publishedBy": "lucy-analyst",
