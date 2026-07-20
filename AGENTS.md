@@ -52,6 +52,267 @@ That file explains what every important Google Sheet column means, including:
 CSV imports must map by header name, not fixed column position. The Google Sheet has changed
 columns before, and fixed-position parsing caused shifted data.
 
+## Card Management And Financial Reconciliation
+
+The private Card Management page is:
+
+```text
+https://authenticitycheck.net/sell/cards
+/sell/cards
+```
+
+Its purpose is to reconcile bank-card activity with Amazon orders and the `Operation` sheet,
+show which card currently carries Amazon-order money, review unmatched activity, and preserve
+an auditable decision trail. Card data is private admin data stored inside the SQLite
+`app_state` key `cardManagement`. Never expose it through a public API or public buyer page.
+
+The working Google Sheet is:
+
+```text
+https://docs.google.com/spreadsheets/d/1sra7RVshoRgBy2fx7Iy2HGz-s59u-3wwO4kRIpBZpog/edit
+```
+
+Do not commit bank statements, exported transactions, order numbers, financial snapshots,
+the Google Sheet contents, or SQLite data to GitHub. Only commit application code,
+documentation, and import/matching rules.
+
+### Cards and statement identities
+
+Use these canonical labels and aliases:
+
+| Dashboard card | Statement identity or alias |
+| --- | --- |
+| `Amazon 1045` | Chase card ending `1045`; Amazon purchases and occasional other activity |
+| `Sapphire 0185` | Chase Sapphire ending `0185`; travel and general purchases |
+| `MS 5276` | Chase statement ending `5276` |
+| `Discover 3038` | Discover ending `3038` |
+| `Chase Debit 3383` | Checking/debit statement may show account/file ending `7560`; treat `7560` and `3383` as the same account |
+| `Apple 7190` | Apple Card ending `7190` |
+
+Other payment methods known from the sheet include `Capital One Debit 2618`, `DIS 6688`, and
+`Gift Card`. These three were explicitly excluded from the consolidated `Problem Summary`
+exercise unless the owner later changes that rule.
+
+The original statement filename patterns used on the Mac were:
+
+```text
+Chase1045_Activity*.CSV
+Chase0185_Activity*.CSV
+Chase5276_Activity*.CSV
+Discover-AllAvailable-*.csv
+Chase7560_Activity*.CSV
+Apple Card Transactions *.csv
+```
+
+The Card Management CSV importer infers a card from the final four digits in the filename.
+The original Discover and Apple filenames may not contain `3038` or `7190`; when importing,
+use a temporary copy whose filename contains the correct ending. Never alter the original
+statement file just to satisfy filename inference.
+
+### Date scopes
+
+Three different date cutoffs have been used and must not be mixed:
+
+- `Problem Summary`: ignore transactions before `2025-03-20`.
+- Missing Amazon/AMZN statement charges list: only activity after `2026-03-20`.
+- Card Management operational dashboard: starts at `2026-06-11`.
+
+Card Management's start date is persisted and defaults to `2026-06-11`. A posted date,
+transaction date, and Amazon order date can differ by several days. Dates are supporting
+evidence, not an automatic reason to reject an otherwise strong amount/card/order match.
+
+### Signed amount conventions
+
+Use one unambiguous convention in transaction/problem lists:
+
+- Positive amount = money charged to the card/account.
+- Negative amount = refund or credit returned to the card/account.
+- An Amazon chargeback/re-charge is a positive Amazon charge, not a refund.
+
+In the `Operation` sheet, `Price Items` remains the positive original item cost. Do not turn
+the original price negative to represent a return. Use `Return Status` plus `Refund Amount`.
+`Refund Amount` is recorded as a positive magnitude in `Operation`, and:
+
+```text
+Net Cost = Price Items - Refund Amount
+```
+
+Therefore a full return has `Net Cost = 0`; a partial return has the unreimbursed balance.
+In signed transaction/problem tables, the corresponding refund transaction itself is
+negative. This difference is intentional.
+
+Do not classify checking-account income, Zelle receipts, Payoneer deposits, credit-card
+autopay, statement payments, cashback redemptions, or balance transfers as product refunds.
+They may be retained as account activity when useful, but they must have a separate transfer,
+payment, or income classification and must not inflate spending/refund KPIs.
+
+### `Operation` sheet columns
+
+The current `Operation` table spans columns `A:U`. Columns have moved before, so always read
+the live header row and map by header name. The current meanings are:
+
+| Column | Header | Meaning |
+| --- | --- | --- |
+| A | blank/row field | Existing sheet-specific field; preserve it |
+| B | `LISTED` | Listing state/date as maintained by the owner |
+| C | `Seller` | Seller/vendor |
+| D | `Account` | Related account |
+| E | `Product Name` | Ordered product |
+| F | `Special double check` | Manual verification flag/details |
+| G | `Order num` | Amazon order number; strongest identity when present |
+| H | `Order Date` | Amazon order date; may not equal transaction/post date |
+| I | `Tracking` | Shipment/return tracking or related delivery evidence |
+| J | `RV POLICY` | Review/reimbursement policy |
+| K | `RV submitted` | Review/reimbursement submission date or state |
+| L | `RV approved day` | Approval date/state |
+| M | `Price Items` | Positive original order/item cost |
+| N | `Return Status` | Returned, partial refund, full refund, or other return state |
+| O | `Refund Amount` | Positive refund magnitude used to calculate net cost |
+| P | `Net Cost` | `Price Items - Refund Amount` |
+| Q | `Paid` | Amount/status paid by the seller/reimbursement workflow |
+| R | `Pay method` | Canonical card/payment method |
+| S | `CHECKED` | Statement reconciliation result; this is column `S`, not the old column `P` |
+| T | `Payment Day` | Payment/reimbursement date |
+| U | `Review\Notes` | Free-form evidence, review copy, exceptions, and context |
+
+For a confirmed statement match, use a consistent `CHECKED` value such as:
+
+```text
+MATCHED – AMAZON 1045
+MATCHED – SAPPHIRE 0185
+MATCHED – MS 5276
+MATCHED – DIS 3038
+MATCHED – CHASE DEBIT 3383
+MATCHED – APPLE 7190
+```
+
+Preserve existing casing when practical. Never overwrite product descriptions, tracking,
+review text, seller notes, or reimbursement values while updating financial match fields.
+
+### Matching rules
+
+Use this evidence priority:
+
+1. Exact card/payment method.
+2. Exact or explainable amount.
+3. Amazon order number when available.
+4. Merchant/descriptor such as `AMAZON`, `AMZN`, or `AMAZON MKTPL`.
+5. Order date, transaction date, and posted date within a reasonable offset.
+6. Tracking, return, refund, gift-card, or owner notes that explain a difference.
+
+Amount is usually stronger than date because transaction and order dates can be wrong or
+shifted. A small rounded difference may be accepted only when card, order/date window, and
+other evidence make the identity clear. Do not round solely because two amounts are close.
+
+Gift-card use can explain why the card charge is lower than `Price Items`; do not overwrite
+the full item price with the card-funded portion unless the owner explicitly resolved it that
+way. Split charges, combined Amazon charges, partial refunds, and multiple same-day orders
+must be documented rather than force-matched.
+
+When a charge and its refund are equal and clearly related, combine them for problem-summary
+purposes and omit the zero-net pair from the final real-problems list. Preserve the underlying
+transactions in Card Management for auditability.
+
+### Problem tabs and resolution flow
+
+Card-specific unresolved work belongs in:
+
+```text
+Problems             Amazon 1045/general original problem table
+Problems 0185        Sapphire 0185
+Problem 5276         MS 5276
+Problem 3038         Discover 3038
+Problem 3383         Chase Debit 3383 / statement alias 7560
+Problem 7190         Apple 7190
+Problem Summary      consolidated final review
+```
+
+Dates in these tabs must be readable dates, never raw Google Sheets serials such as `46043`.
+
+`Problem Summary` contains an owner-decision column named `MY FINAL RW`. Treat `RESOLVED`
+there as authoritative. After resolution:
+
+1. Re-check the charge/refund sign.
+2. Trace the row back to the exact `Operation` order.
+3. Correct `Price Items`, `Return Status`, `Refund Amount`, and `Net Cost` only when the
+   resolution supplies evidence for those fields.
+4. Set `CHECKED` to `MATCHED – <CARD>`.
+5. Do not create fake `Operation` product rows for bank-only activity that has no identified
+   order/product.
+6. Leave only genuinely unmatched or mismatched amounts in the final problem section.
+
+The consolidated review requested these separate outputs:
+
+- Remaining real problem items after resolved rows and zero-net charge/refund pairs are removed.
+- Amazon/AMZN card charges missing from `Operation`.
+- Amazon chargebacks/re-charges as a separate positive-charge list.
+
+### Card Management application behavior
+
+The first production Card Management implementation lives in:
+
+```text
+app/card-management.js
+app/styles.css
+app/main.js
+app/store.js
+server.py
+```
+
+It provides:
+
+- date range beginning `2026-06-11`;
+- Amazon money held by card;
+- unmatched-charge, pending-refund, and confirmed-spend KPIs;
+- per-card exposure bars and a review queue;
+- card/status/Amazon/search filters;
+- add, edit, confirm, flag, and delete actions;
+- multi-file CSV statement import and CSV export;
+- persistent storage through `/sell/api/state`.
+
+Current transaction status meanings:
+
+| Status | Meaning |
+| --- | --- |
+| `held` | Amazon charge believed to represent money still tied up in an order; requires reconciliation before considered final |
+| `unmatched` | Positive charge not yet linked/confirmed |
+| `review` | Evidence conflict or manual decision needed |
+| `confirmed` | Charge matched and accepted |
+| `refund-pending` | Negative credit/refund not yet fully reconciled |
+| `released` | Hold/refund lifecycle is complete and no longer outstanding |
+
+Imported Amazon transactions are initially provisional. Do not assume every historical Amazon
+charge is still held merely because the descriptor contains Amazon. Reconcile it against
+`Operation`, refunds, and resolved problem rows, then change it to `confirmed` or `released`
+as appropriate.
+
+As of `2026-07-20`, the first live import loaded 153 statement transactions dated from
+`2026-06-11` onward:
+
+```text
+Amazon 1045       63
+Sapphire 0185     16
+MS 5276            1
+Discover 3038      1
+Chase Debit 3383  26
+Apple 7190        46
+```
+
+This is a historical baseline, not a hard-coded expected total. Re-imports must deduplicate by
+card, transaction date, signed amount, and normalized merchant/descriptor. Always verify
+persistence by reloading `/sell/cards` after import.
+
+### Card Management safety
+
+- Never place real transaction seed data in frontend JavaScript or Git.
+- Never overwrite the entire `/api/state` payload with only `cardManagement`; preserve rows,
+  product details, metadata, and other state keys.
+- Never delete `data/seller_dashboard.db` to reset Card Management.
+- Before bulk cleanup, create/verify a SQLite backup and identify transactions by stable keys.
+- A statement import must be idempotent and must report skipped duplicates.
+- Keep charges and refunds separately auditable even when the problem summary nets them.
+- Owner decisions in `MY FINAL RW` and explicit notes override automated confidence scores.
+
 ## Live Raspberry Pi Setup
 
 Known production Raspberry Pi details:
