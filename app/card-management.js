@@ -121,6 +121,10 @@ export function renderCardManagement(root, options) {
               </label>
             </div>
             <div class="transaction-actions">
+              <label class="finance-button secondary statement-import-button">
+                <input id="card-statement-import" type="file" accept=".csv,text/csv" multiple />
+                Import statements
+              </label>
               <button id="export-card-csv" class="finance-button secondary" type="button">Export CSV</button>
               <button id="add-card-transaction" class="finance-button primary" type="button">Add transaction</button>
             </div>
@@ -186,6 +190,29 @@ export function renderCardManagement(root, options) {
       render();
     });
     root.querySelector("#export-card-csv")?.addEventListener("click", () => exportCsv(visible, model.cards));
+    root.querySelector("#card-statement-import")?.addEventListener("change", async (event) => {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      const imported = [];
+      const errors = [];
+      for (const file of files) {
+        try {
+          imported.push(...transactionsFromStatement(await file.text(), file.name, model.cards, model.startDate));
+        } catch (error) {
+          errors.push(`${file.name}: ${error.message}`);
+        }
+      }
+      const existingKeys = new Set(model.transactions.map(transactionKey));
+      const unique = imported.filter((entry) => {
+        const key = transactionKey(entry);
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key);
+        return true;
+      });
+      model.transactions = [...unique, ...model.transactions];
+      await persist(`Imported ${unique.length} new transaction${unique.length === 1 ? "" : "s"}${errors.length ? `; ${errors.length} file(s) need review` : ""}.`);
+      render();
+    });
     root.querySelector("[data-close-card-drawer]")?.addEventListener("click", () => {
       ui.editingId = "";
       render();
@@ -393,6 +420,129 @@ function transactionFromForm(form, editingId) {
     note: String(form.get("note") || "").trim(),
     updatedAt: new Date().toISOString(),
   };
+}
+
+function transactionsFromStatement(text, fileName, cards, startDate) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((value) => value.trim());
+  const records = rows.slice(1).filter((row) => row.some((value) => String(value).trim())).map((row) =>
+    Object.fromEntries(headers.map((header, index) => [header, String(row[index] ?? "").trim()])),
+  );
+  const card = inferCardFromFileName(fileName, cards);
+  if (!card) throw new Error("card number was not recognized in the filename");
+
+  return records.flatMap((record, index) => {
+    const transactionDate = normalizeStatementDate(
+      record["Transaction Date"] || record["Trans. Date"] || record["Posting Date"],
+    );
+    if (!transactionDate || transactionDate < startDate) return [];
+
+    const description = record.Description || record.Merchant || "";
+    const rawType = record.Type || record.Details || record.Category || "";
+    if (isAccountPayment(description, rawType)) return [];
+
+    const sourceAmount = parseStatementAmount(record.Amount ?? record["Amount (USD)"]);
+    if (!Number.isFinite(sourceAmount) || sourceAmount === 0) return [];
+    const amount = normalizeStatementAmount(sourceAmount, record, fileName);
+    const amazon = /\bAMAZON\b|\bAMZN\b/i.test(`${description} ${record.Merchant || ""}`);
+    const isRefund = amount < 0;
+    const status = isRefund ? "refund-pending" : amazon ? "held" : "unmatched";
+    const confidence = amazon ? 85 : 35;
+
+    return [{
+      id: `import-${card.id}-${transactionDate}-${Math.abs(amount).toFixed(2)}-${stableHash(`${description}-${index}`)}`,
+      transactionDate,
+      orderDate: "",
+      cardId: card.id,
+      merchant: description || record.Merchant || "Statement transaction",
+      amount,
+      orderNumber: "",
+      evidence: record["Post Date"] || record["Clearing Date"] || record["Posting Date"] || rawType,
+      status,
+      confidence,
+      amazon,
+      note: `Imported from ${fileName}`,
+      updatedAt: new Date().toISOString(),
+    }];
+  });
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  const source = String(text || "").replace(/^\uFEFF/, "");
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quoted) {
+      if (char === '"' && source[index + 1] === '"') {
+        value += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        value += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(value);
+      value = "";
+    } else if (char === "\n") {
+      row.push(value.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      value = "";
+    } else {
+      value += char;
+    }
+  }
+  if (value || row.length) {
+    row.push(value.replace(/\r$/, ""));
+    rows.push(row);
+  }
+  return rows;
+}
+
+function inferCardFromFileName(fileName, cards) {
+  const aliases = { "7560": "chase-debit-3383" };
+  const aliasId = Object.entries(aliases).find(([last4]) => fileName.includes(last4))?.[1];
+  return cards.find((card) => card.id === aliasId || fileName.includes(card.last4));
+}
+
+function normalizeStatementDate(value) {
+  const match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[1]}-${match[2]}` : "";
+}
+
+function parseStatementAmount(value) {
+  const number = Number(String(value ?? "").replace(/[$,\s]/g, "").replace(/^\((.*)\)$/, "-$1"));
+  return Number.isFinite(number) ? number : Number.NaN;
+}
+
+function normalizeStatementAmount(amount, record, fileName) {
+  if (/Apple Card/i.test(fileName)) {
+    return /refund|credit|return/i.test(`${record.Type || ""} ${record.Description || ""}`) ? -Math.abs(amount) : Math.abs(amount);
+  }
+  if (/Discover/i.test(fileName)) return amount;
+  if (/Chase7560/i.test(fileName)) return /DEBIT/i.test(record.Details || "") ? Math.abs(amount) : -Math.abs(amount);
+  return amount < 0 ? Math.abs(amount) : -Math.abs(amount);
+}
+
+function isAccountPayment(description, type) {
+  return /PAYMENT.+THANK|AUTOMATIC PAYMENT|INTERNET PAYMENT|MOBILE PAYMENT|PAYMENT RECEIVED/i.test(`${description} ${type}`);
+}
+
+function transactionKey(entry) {
+  return [entry.transactionDate, entry.cardId, Number(entry.amount).toFixed(2), String(entry.merchant || "").toUpperCase()].join("|");
+}
+
+function stableHash(value) {
+  let hash = 0;
+  for (const char of String(value)) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+  return Math.abs(hash).toString(36);
 }
 
 function getVisibleTransactions(transactions, ui) {

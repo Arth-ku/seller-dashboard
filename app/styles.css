@@ -2760,6 +2760,21 @@ a.pill-link {
   font: 700 0.82rem/1 var(--font-body);
 }
 
+.statement-import-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.statement-import-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .finance-button.primary {
   color: #fff;
   background: #1747c9;
