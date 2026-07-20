@@ -23,7 +23,7 @@ import {
   uploadImages,
 } from "./store.js?v=20260718a";
 import { renderOrderProcessPage } from "./process.js?v=20260718a";
-import { normalizeCardManagement, renderCardManagement } from "./card-management.js?v=20260720a";
+import { normalizeCardManagement, renderCardManagement } from "./card-management.js?v=20260720b";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
