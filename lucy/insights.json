@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "12 critical, 6 watch, 124 prep",
+      "detail": "12 critical, 6 watch, 119 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "165"
+      "value": "164"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "87"
+      "value": "84"
     },
     {
-      "detail": "41 snapshots today",
+      "detail": "43 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-28T10:10:09-04:00",
+  "generatedAt": "2026-07-28T10:40:17-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-28T10:10:09-04:00",
+  "publishedAt": "2026-07-28T10:40:17-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "41 snapshots reviewed.",
+          "detail": "43 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-07-28",
     "kind": "lucy-analyst",
-    "liveCount": 165,
+    "liveCount": 164,
     "publishedBy": "lucy-analyst",
-    "rowCount": 487,
+    "rowCount": 486,
     "soldCount": 322
   },
   "status": "bad",
-  "summary": "165 live items across Apparel: 101, HVAC: 19, Units: 45. 87 quick wins. dashboard health: all ok."
+  "summary": "164 live items across Apparel: 101, HVAC: 19, Units: 44. 84 quick wins. dashboard health: all ok."
 }
