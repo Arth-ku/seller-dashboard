@@ -56,15 +56,15 @@
       "value": "83"
     },
     {
-      "detail": "89 snapshots today",
+      "detail": "91 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-29T22:24:02-04:00",
+  "generatedAt": "2026-07-29T22:54:09-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-29T22:24:02-04:00",
+  "publishedAt": "2026-07-29T22:54:09-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -120,7 +120,7 @@
         },
         {
           "boxId": "582",
-          "detail": "HAS 3 (594, 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 71 | 162 days listed, 72 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 71 | 162 days listed, 72 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 582",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "89 snapshots reviewed.",
+          "detail": "91 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -195,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "268 sold / $54637"
+          "value": "269 sold / $54767"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -225,8 +225,8 @@
     "kind": "lucy-analyst",
     "liveCount": 163,
     "publishedBy": "lucy-analyst",
-    "rowCount": 486,
-    "soldCount": 323
+    "rowCount": 487,
+    "soldCount": 324
   },
   "status": "bad",
   "summary": "163 live items across Apparel: 101, HVAC: 19, Units: 43. 83 quick wins. dashboard health: all ok."
