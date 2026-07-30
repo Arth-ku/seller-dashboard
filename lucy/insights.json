@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "11 critical, 6 watch, 119 prep",
+      "detail": "11 critical, 5 watch, 119 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "165"
+      "value": "164"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "83"
+      "value": "82"
     },
     {
-      "detail": "66 snapshots today",
+      "detail": "68 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-07-30T16:30:45-04:00",
+  "generatedAt": "2026-07-30T17:00:49-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-07-30T16:30:45-04:00",
+  "publishedAt": "2026-07-30T17:00:49-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "66 snapshots reviewed.",
+          "detail": "68 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -195,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "269 sold / $54767"
+          "value": "270 sold / $54907"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-07-30",
     "kind": "lucy-analyst",
-    "liveCount": 165,
+    "liveCount": 164,
     "publishedBy": "lucy-analyst",
     "rowCount": 489,
-    "soldCount": 324
+    "soldCount": 325
   },
   "status": "bad",
-  "summary": "165 live items across Apparel: 101, HVAC: 19, Units: 45. 83 quick wins. dashboard health: all ok."
+  "summary": "164 live items across Apparel: 101, HVAC: 19, Units: 44. 82 quick wins. dashboard health: all ok."
 }
