@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "12 critical, 5 watch, 119 prep",
+      "detail": "12 critical, 5 watch, 121 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "168"
+      "value": "167"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "84"
+      "value": "86"
     },
     {
-      "detail": "45 snapshots today",
+      "detail": "47 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-08-10T11:02:05-04:00",
+  "generatedAt": "2026-08-10T11:32:09-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-08-10T11:02:05-04:00",
+  "publishedAt": "2026-08-10T11:32:09-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "45 snapshots reviewed.",
+          "detail": "47 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -195,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "280 sold / $56887"
+          "value": "284 sold / $57417"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-08-10",
     "kind": "lucy-analyst",
-    "liveCount": 168,
+    "liveCount": 167,
     "publishedBy": "lucy-analyst",
-    "rowCount": 503,
-    "soldCount": 335
+    "rowCount": 506,
+    "soldCount": 339
   },
   "status": "bad",
-  "summary": "168 live items across Apparel: 101, HVAC: 19, Units: 48. 84 quick wins. dashboard health: all ok."
+  "summary": "167 live items across Apparel: 101, HVAC: 19, Units: 47. 86 quick wins. dashboard health: all ok."
 }
