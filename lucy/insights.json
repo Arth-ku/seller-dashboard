@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "12 critical, 6 watch, 121 prep",
+      "detail": "12 critical, 6 watch, 118 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "167"
+      "value": "164"
     },
     {
       "detail": "Box 3",
@@ -56,15 +56,15 @@
       "value": "86"
     },
     {
-      "detail": "58 snapshots today",
+      "detail": "60 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-08-13T14:29:47-04:00",
+  "generatedAt": "2026-08-13T14:59:53-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-08-13T14:29:47-04:00",
+  "publishedAt": "2026-08-13T14:59:53-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "58 snapshots reviewed.",
+          "detail": "60 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -195,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "284 sold / $57417"
+          "value": "287 sold / $59117"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-08-13",
     "kind": "lucy-analyst",
-    "liveCount": 167,
+    "liveCount": 164,
     "publishedBy": "lucy-analyst",
     "rowCount": 506,
-    "soldCount": 339
+    "soldCount": 342
   },
   "status": "bad",
-  "summary": "167 live items across Apparel: 101, HVAC: 19, Units: 47. 86 quick wins. dashboard health: all ok."
+  "summary": "164 live items across Apparel: 101, HVAC: 16, Units: 47. 86 quick wins. dashboard health: all ok."
 }
