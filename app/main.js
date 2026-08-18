@@ -23,7 +23,7 @@ import {
   uploadImages,
 } from "./store.js?v=20260718a";
 import { renderOrderProcessPage } from "./process.js?v=20260718a";
-import { normalizeCardManagement, renderCardManagement } from "./card-management.js?v=20260720b";
+import { normalizeCardManagement, renderCardManagement } from "./card-management.js?v=20260721b";
 
 const app = document.querySelector("#app");
 const APP_CONFIG = window.__APP_CONFIG__ || {};
@@ -192,6 +192,7 @@ async function loadSnapshotAndRender(snapshotId) {
 
 function renderLogin() {
   clearHealthRefresh();
+  document.querySelector(".global-refresh")?.remove();
   app.innerHTML = `
     <main class="shell login-shell">
       <section class="panel login-panel">
@@ -277,6 +278,7 @@ function render() {
   }
 
   renderSaveToast();
+  renderGlobalRefresh(route);
 }
 
 function renderHealthPage() {
@@ -1933,39 +1935,8 @@ function bindDashboardEvents() {
     await loadAndRender();
   });
 
-  refreshSheetButton?.addEventListener("click", async () => {
-    if (isHistoryMode()) {
-      setSaveMessage("Return to current before refreshing from Google Sheet.");
-      render();
-      return;
-    }
-
-    state.isRefreshingSheet = true;
-    setSaveMessage("Refreshing from Google Sheet now...", { kind: "saving", autoDismiss: false });
-    render();
-    try {
-      const result = await refreshGoogleSheet();
-      const stored = await loadAppState();
-      state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
-      state.productDetails = stored.productDetails;
-      state.meta = stored.meta;
-      state.viewingSnapshot = null;
-      state.historySnapshots = await loadHistorySnapshots();
-      setSaveMessage(`Refreshed ${result.rowCount || state.rows.length} row(s) from Google Sheet.`, {
-        kind: "success",
-        heading: "Refreshed",
-      });
-    } catch (error) {
-      if (error && error.unauthorized) {
-        state.session = { authenticated: false, authRequired: true };
-        renderLogin();
-        return;
-      }
-      setSaveMessage(error?.message || "Could not refresh from Google Sheet.", { kind: "warning" });
-    } finally {
-      state.isRefreshingSheet = false;
-      render();
-    }
+  refreshSheetButton?.addEventListener("click", () => {
+    refreshFromGoogleSheet();
   });
 
   addRowButton?.addEventListener("click", async () => {
@@ -4103,6 +4074,88 @@ function setButtonSaving(button, isSaving) {
   button.textContent = button.dataset.originalText || button.textContent;
   button.disabled = false;
   button.classList.remove("is-saving");
+}
+
+// Shared by the dashboard toolbar button and the floating refresh button that appears
+// on every other page, so the list can be refreshed without going back to the dashboard.
+async function refreshFromGoogleSheet() {
+  if (state.isRefreshingSheet) {
+    return;
+  }
+
+  if (isHistoryMode()) {
+    setSaveMessage("Return to current before refreshing from Google Sheet.");
+    render();
+    return;
+  }
+
+  state.isRefreshingSheet = true;
+  setSaveMessage("Refreshing from Google Sheet now...", { kind: "saving", autoDismiss: false });
+  render();
+
+  let showedLogin = false;
+  try {
+    const result = await refreshGoogleSheet();
+    const stored = await loadAppState();
+    state.rows = pruneRows((stored.rows || []).map(normalizeRowState));
+    state.productDetails = stored.productDetails;
+    state.meta = stored.meta;
+    state.viewingSnapshot = null;
+    state.historySnapshots = await loadHistorySnapshots();
+    setSaveMessage(`Refreshed ${result.rowCount || state.rows.length} row(s) from Google Sheet.`, {
+      kind: "success",
+      heading: "Refreshed",
+    });
+  } catch (error) {
+    if (error && error.unauthorized) {
+      state.session = { authenticated: false, authRequired: true };
+      showedLogin = true;
+      renderLogin();
+      return;
+    }
+    setSaveMessage(error?.message || "Could not refresh from Google Sheet.", { kind: "warning" });
+  } finally {
+    state.isRefreshingSheet = false;
+    // Don't re-render over the login screen when the session expired mid-refresh.
+    if (!showedLogin) {
+      render();
+    }
+  }
+}
+
+// Floating refresh control shown on every page except the dashboard (whose toolbar
+// already has one), so you never have to navigate back just to refresh the list.
+function renderGlobalRefresh(route) {
+  document.querySelector(".global-refresh")?.remove();
+
+  const signedIn = state.session.authenticated || !state.session.authRequired;
+  if (!signedIn) {
+    return;
+  }
+
+  const isDashboard = !route.page && !route.boxId;
+  if (isDashboard) {
+    return;
+  }
+
+  const historyMode = isHistoryMode();
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "global-refresh";
+  button.disabled = state.isRefreshingSheet;
+  button.title = historyMode
+    ? "Return to current before refreshing from Google Sheet"
+    : "Refresh the list from Google Sheet";
+  button.setAttribute("aria-label", button.title);
+  button.innerHTML = `
+    <span class="global-refresh-icon" aria-hidden="true"></span>
+    <span class="global-refresh-label">${state.isRefreshingSheet ? "Refreshing..." : "Refresh list"}</span>
+  `;
+  button.addEventListener("click", () => {
+    refreshFromGoogleSheet();
+  });
+
+  document.body.append(button);
 }
 
 function isHistoryMode() {

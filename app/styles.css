@@ -3436,3 +3436,69 @@ a.pill-link {
     grid-template-columns: 1fr;
 }
 }
+
+/* Floating "Refresh list" button, shown on every page except the dashboard.
+   Sits bottom-left because the save toast occupies bottom-right (z-index 1000). */
+.global-refresh {
+  position: fixed;
+  left: 22px;
+  bottom: 22px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(31, 33, 27, 0.24);
+  transition: transform 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.global-refresh:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--brand-strong);
+}
+
+.global-refresh:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.global-refresh-icon::before {
+  content: "\21bb";
+  display: block;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.global-refresh:disabled .global-refresh-icon::before {
+  animation: globalRefreshSpin 900ms linear infinite;
+}
+
+@keyframes globalRefreshSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 720px) {
+  .global-refresh {
+    left: 16px;
+    bottom: 16px;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .global-refresh-label {
+    display: none;
+  }
+}
