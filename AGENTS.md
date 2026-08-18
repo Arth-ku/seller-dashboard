@@ -265,9 +265,11 @@ It provides:
 - Amazon money held by card;
 - unmatched-charge, pending-refund, and confirmed-spend KPIs;
 - per-card exposure bars and a review queue;
-- card/status/Amazon/search filters;
+- card/status/purchase-type/search filters, sorting, and filter-aware activity totals;
 - add, edit, confirm, flag, and delete actions;
 - multi-file CSV statement import and CSV export;
+- persistent private CSV import history (filename, card, date, added/skipped counts), including
+  recovery of earlier filenames from transaction import notes;
 - persistent storage through `/sell/api/state`.
 
 Current transaction status meanings:

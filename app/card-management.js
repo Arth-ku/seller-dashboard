@@ -23,9 +23,11 @@ const shortDate = new Intl.DateTimeFormat("en-US", {
 
 export function normalizeCardManagement(value) {
   const source = value && typeof value === "object" ? value : {};
+  const transactions = Array.isArray(source.transactions) ? source.transactions : [];
   return {
     cards: Array.isArray(source.cards) && source.cards.length ? source.cards : DEFAULT_CARDS,
-    transactions: Array.isArray(source.transactions) ? source.transactions : [],
+    transactions,
+    statementImports: normalizeStatementImports(source.statementImports, transactions),
     startDate: source.startDate || DEFAULT_START_DATE,
   };
 }
@@ -37,16 +39,21 @@ export function renderCardManagement(root, options) {
     search: "",
     card: "all",
     status: "all",
-    amazonOnly: false,
+    purchaseType: "all",
+    sort: "newest",
     endDate: isoToday(),
     editingId: "",
   };
 
   const render = () => {
     const visible = getVisibleTransactions(model.transactions, ui);
+    const purchaseScope = getVisibleTransactions(model.transactions, { ...ui, purchaseType: "all" });
+    const purchaseBreakdown = summarizePurchaseTypes(purchaseScope);
+    const activity = summarizeActivity(visible);
     const summary = summarize(visible);
     const exposure = buildExposure(model.cards, visible);
     const maxExposure = Math.max(1, ...exposure.map((entry) => entry.amount));
+    const hasFilters = Boolean(ui.search || ui.card !== "all" || ui.status !== "all" || ui.purchaseType !== "all");
 
     root.innerHTML = `
       <main class="card-shell">
@@ -95,6 +102,18 @@ export function renderCardManagement(root, options) {
         </section>
 
         <section class="finance-panel transaction-panel">
+          <div class="transaction-heading">
+            <div>
+              <h2>Transactions</h2>
+              <p>Separate business-related Amazon purchases from every other bill.</p>
+            </div>
+            <span>${visible.length} shown</span>
+          </div>
+          <div class="purchase-type-filter" role="group" aria-label="Filter by purchase type">
+            ${purchaseTypeButton("all", "All activity", "Amazon and other bills", purchaseBreakdown.all, ui.purchaseType)}
+            ${purchaseTypeButton("amazon", "Amazon purchases", "Business only", purchaseBreakdown.amazon, ui.purchaseType)}
+            ${purchaseTypeButton("other", "Other bills", "Non-Amazon activity", purchaseBreakdown.other, ui.purchaseType)}
+          </div>
           <div class="transaction-toolbar">
             <div class="transaction-filters">
               <label class="finance-search">
@@ -115,10 +134,16 @@ export function renderCardManagement(root, options) {
                   ${["held", "unmatched", "review", "confirmed", "refund-pending", "released"].map((status) => `<option value="${status}" ${ui.status === status ? "selected" : ""}>${escapeHtml(statusLabel(status))}</option>`).join("")}
                 </select>
               </label>
-              <label class="amazon-filter">
-                <input id="amazon-only" type="checkbox" ${ui.amazonOnly ? "checked" : ""} />
-                Amazon only
+              <label>
+                <span class="sr-only">Sort transactions</span>
+                <select id="transaction-sort">
+                  <option value="newest" ${ui.sort === "newest" ? "selected" : ""}>Newest first</option>
+                  <option value="oldest" ${ui.sort === "oldest" ? "selected" : ""}>Oldest first</option>
+                  <option value="amount-high" ${ui.sort === "amount-high" ? "selected" : ""}>Largest amount</option>
+                  <option value="amount-low" ${ui.sort === "amount-low" ? "selected" : ""}>Smallest amount</option>
+                </select>
               </label>
+              ${hasFilters ? `<button id="clear-card-filters" class="clear-finance-filters" type="button">Clear filters</button>` : ""}
             </div>
             <div class="transaction-actions">
               <label class="finance-button secondary statement-import-button">
@@ -128,6 +153,13 @@ export function renderCardManagement(root, options) {
               <button id="export-card-csv" class="finance-button secondary" type="button">Export CSV</button>
               <button id="add-card-transaction" class="finance-button primary" type="button">Add transaction</button>
             </div>
+          </div>
+          ${statementImportHistory(model.statementImports, model.cards)}
+          <div class="transaction-summary" aria-label="Totals for the current transaction view">
+            ${activityMetric("Transactions", String(activity.count), "Current filtered view")}
+            ${activityMetric("Purchases", money.format(activity.charges), `${activity.chargeCount} charge${activity.chargeCount === 1 ? "" : "s"}`, "charge")}
+            ${activityMetric("Refunds & credits", money.format(activity.credits), `${activity.creditCount} credit${activity.creditCount === 1 ? "" : "s"}`, "credit")}
+            ${activityMetric("Net activity", money.format(activity.net), activity.net >= 0 ? "Purchases minus credits" : "Credits exceed purchases", activity.net < 0 ? "credit" : "net")}
           </div>
           <div class="finance-table-wrap">
             ${transactionTable(visible, model.cards)}
@@ -180,9 +212,21 @@ export function renderCardManagement(root, options) {
       ui.status = value;
       render();
     });
-
-    root.querySelector("#amazon-only")?.addEventListener("change", (event) => {
-      ui.amazonOnly = event.target.checked;
+    bindValue("#transaction-sort", "change", (value) => {
+      ui.sort = value;
+      render();
+    });
+    root.querySelectorAll("[data-purchase-type]").forEach((button) => {
+      button.addEventListener("click", () => {
+        ui.purchaseType = button.dataset.purchaseType;
+        render();
+      });
+    });
+    root.querySelector("#clear-card-filters")?.addEventListener("click", () => {
+      ui.search = "";
+      ui.card = "all";
+      ui.status = "all";
+      ui.purchaseType = "all";
       render();
     });
     root.querySelector("#add-card-transaction")?.addEventListener("click", () => {
@@ -194,23 +238,54 @@ export function renderCardManagement(root, options) {
       const files = Array.from(event.target.files || []);
       if (!files.length) return;
       const imported = [];
+      const importRecords = [];
       const errors = [];
+      const existingKeys = new Set(model.transactions.map(transactionKey));
       for (const file of files) {
+        const importedAt = new Date().toISOString();
         try {
-          imported.push(...transactionsFromStatement(await file.text(), file.name, model.cards, model.startDate));
+          const parsed = transactionsFromStatement(await file.text(), file.name, model.cards, model.startDate)
+            .map((entry) => ({ ...entry, statementFileName: file.name }));
+          let addedCount = 0;
+          parsed.forEach((entry) => {
+            const key = transactionKey(entry);
+            if (existingKeys.has(key)) return;
+            existingKeys.add(key);
+            imported.push(entry);
+            addedCount += 1;
+          });
+          importRecords.push({
+            id: statementImportId(file.name, file.size, file.lastModified),
+            fileName: file.name,
+            cardId: parsed[0]?.cardId || inferCardFromFileName(file.name, model.cards)?.id || "",
+            fileSize: Number(file.size) || 0,
+            fileLastModified: Number(file.lastModified) || 0,
+            importedAt,
+            parsedCount: parsed.length,
+            addedCount,
+            duplicateCount: parsed.length - addedCount,
+            inferred: false,
+            error: "",
+          });
         } catch (error) {
           errors.push(`${file.name}: ${error.message}`);
+          importRecords.push({
+            id: statementImportId(file.name, file.size, file.lastModified),
+            fileName: file.name,
+            fileSize: Number(file.size) || 0,
+            fileLastModified: Number(file.lastModified) || 0,
+            importedAt,
+            parsedCount: 0,
+            addedCount: 0,
+            duplicateCount: 0,
+            inferred: false,
+            error: error.message,
+          });
         }
       }
-      const existingKeys = new Set(model.transactions.map(transactionKey));
-      const unique = imported.filter((entry) => {
-        const key = transactionKey(entry);
-        if (existingKeys.has(key)) return false;
-        existingKeys.add(key);
-        return true;
-      });
-      model.transactions = [...unique, ...model.transactions];
-      await persist(`Imported ${unique.length} new transaction${unique.length === 1 ? "" : "s"}${errors.length ? `; ${errors.length} file(s) need review` : ""}.`);
+      model.transactions = [...imported, ...model.transactions];
+      model.statementImports = mergeStatementImports(model.statementImports, importRecords, model.transactions);
+      await persist(`Imported ${imported.length} new transaction${imported.length === 1 ? "" : "s"} from ${files.length} CSV file${files.length === 1 ? "" : "s"}${errors.length ? `; ${errors.length} file(s) need review` : ""}.`);
       render();
     });
     root.querySelector("[data-close-card-drawer]")?.addEventListener("click", () => {
@@ -293,6 +368,69 @@ function metricCard(label, amount, detail, tone) {
   `;
 }
 
+function purchaseTypeButton(value, label, detail, summary, activeValue) {
+  return `
+    <button class="purchase-type-option ${activeValue === value ? "active" : ""}" type="button" data-purchase-type="${value}" aria-pressed="${activeValue === value}">
+      <span><b>${escapeHtml(label)}</b><small>${escapeHtml(detail)}</small></span>
+      <strong>${summary.count}</strong>
+      <em>${summary.chargeCount} purchase${summary.chargeCount === 1 ? "" : "s"} · ${money.format(summary.charges)}</em>
+    </button>
+  `;
+}
+
+function activityMetric(label, value, detail, tone = "") {
+  return `
+    <div class="transaction-summary-item ${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </div>
+  `;
+}
+
+function statementImportHistory(imports, cards) {
+  if (!imports.length) {
+    return `
+      <div class="statement-history empty">
+        <div><strong>Uploaded CSV files</strong><span>No statement files remembered yet.</span></div>
+        <small>Imported filenames and results will stay here after refresh.</small>
+      </div>
+    `;
+  }
+
+  const cardById = new Map(cards.map((card) => [card.id, cardLabel(card)]));
+  return `
+    <details class="statement-history" open>
+      <summary>
+        <span><strong>Uploaded CSV files</strong><small>${imports.length} file${imports.length === 1 ? "" : "s"} remembered</small></span>
+        <b>Import history</b>
+      </summary>
+      <div class="statement-history-list">
+        ${imports.map((entry) => statementImportRow(entry, cardById)).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function statementImportRow(entry, cardById) {
+  const matchedCard = entry.cardId ? cardById.get(entry.cardId) : "";
+  const added = Number(entry.addedCount) || 0;
+  const duplicates = Number(entry.duplicateCount) || 0;
+  const saved = Number(entry.savedTransactionCount) || 0;
+  let result = entry.error
+    ? `Needs review: ${entry.error}`
+    : `${added} added${duplicates ? ` · ${duplicates} duplicate${duplicates === 1 ? "" : "s"} skipped` : ""}`;
+  if (entry.inferred) result = `${saved} saved transaction${saved === 1 ? "" : "s"} · recovered from earlier import`;
+
+  return `
+    <div class="statement-history-row ${entry.error ? "has-error" : ""}">
+      <span class="statement-file-icon" aria-hidden="true">CSV</span>
+      <span class="statement-file-name"><strong>${escapeHtml(entry.fileName)}</strong><small>${escapeHtml([matchedCard, formatImportDate(entry.importedAt)].filter(Boolean).join(" · ") || "Earlier import")}</small></span>
+      <span class="statement-import-result">${escapeHtml(result)}</span>
+    </div>
+  `;
+}
+
 function exposureRow(entry, max) {
   const width = entry.amount > 0 ? Math.max(2, (entry.amount / max) * 100) : 0;
   return `
@@ -343,7 +481,7 @@ function transactionTable(transactions, cards) {
           <td>${formatDate(entry.transactionDate)}</td>
           <td><strong>${escapeHtml(entry.orderNumber || "—")}</strong><small>${escapeHtml(entry.orderDate ? formatDate(entry.orderDate) : entry.evidence || "No order evidence")}</small></td>
           <td>${escapeHtml(card ? cardLabel(card) : "Unknown card")}</td>
-          <td><strong>${escapeHtml(entry.merchant || "—")}</strong><small>${entry.amazon ? "Amazon" : "Other merchant"}</small></td>
+          <td><strong>${escapeHtml(entry.merchant || "—")}</strong><small class="purchase-classification ${entry.amazon ? "business" : "other"}">${escapeHtml(purchaseClassification(entry))}</small></td>
           <td class="number-cell ${Number(entry.amount) < 0 ? "refund-amount" : ""}">${money.format(Number(entry.amount) || 0)}</td>
           <td>${confidenceMarkup(entry.confidence)}</td>
           <td><span class="status-tag ${escapeAttribute(entry.status)}">${escapeHtml(statusLabel(entry.status))}</span></td>
@@ -539,6 +677,83 @@ function transactionKey(entry) {
   return [entry.transactionDate, entry.cardId, Number(entry.amount).toFixed(2), String(entry.merchant || "").toUpperCase()].join("|");
 }
 
+function normalizeStatementImports(value, transactions) {
+  const stored = Array.isArray(value)
+    ? value.filter((entry) => entry && typeof entry === "object" && entry.fileName).map((entry) => ({ ...entry }))
+    : [];
+  return mergeStatementImports([], stored, transactions);
+}
+
+function mergeStatementImports(current, incoming, transactions) {
+  const byIdentity = new Map();
+  [...current, ...incoming].forEach((entry) => {
+    if (!entry?.fileName) return;
+    const identity = String(entry.fileName).toLowerCase();
+    const previous = byIdentity.get(identity);
+    byIdentity.set(identity, previous ? {
+      ...previous,
+      ...entry,
+      firstImportedAt: previous.firstImportedAt || previous.importedAt || entry.importedAt,
+      uploadCount: (Number(previous.uploadCount) || 1) + 1,
+    } : {
+      ...entry,
+      firstImportedAt: entry.firstImportedAt || entry.importedAt || "",
+      uploadCount: Number(entry.uploadCount) || 1,
+    });
+  });
+
+  const transactionFiles = new Map();
+  transactions.forEach((entry) => {
+    const fileName = statementFileName(entry);
+    if (!fileName) return;
+    const key = fileName.toLowerCase();
+    const existing = transactionFiles.get(key) || { fileName, count: 0, latestAt: "", cardId: entry.cardId || "" };
+    existing.count += 1;
+    existing.latestAt = String(entry.updatedAt || "") > existing.latestAt ? String(entry.updatedAt || "") : existing.latestAt;
+    existing.cardId ||= entry.cardId || "";
+    transactionFiles.set(key, existing);
+  });
+
+  transactionFiles.forEach((details, fileNameKey) => {
+    const existingKey = Array.from(byIdentity.keys()).find((key) => {
+      const entry = byIdentity.get(key);
+      return String(entry.fileName).toLowerCase() === fileNameKey;
+    });
+    if (existingKey) {
+      byIdentity.set(existingKey, { ...byIdentity.get(existingKey), savedTransactionCount: details.count, cardId: byIdentity.get(existingKey).cardId || details.cardId });
+      return;
+    }
+    const fileName = details.fileName;
+    const identity = `inferred-${stableHash(fileNameKey)}`;
+    byIdentity.set(identity, {
+      id: identity,
+      fileName,
+      importedAt: details.latestAt,
+      firstImportedAt: details.latestAt,
+      parsedCount: details.count,
+      addedCount: details.count,
+      duplicateCount: 0,
+      savedTransactionCount: details.count,
+      cardId: details.cardId,
+      uploadCount: 1,
+      inferred: true,
+      error: "",
+    });
+  });
+
+  return Array.from(byIdentity.values()).sort((left, right) => String(right.importedAt || "").localeCompare(String(left.importedAt || "")));
+}
+
+function statementFileName(entry) {
+  if (entry?.statementFileName) return String(entry.statementFileName);
+  const note = String(entry?.note || "");
+  return note.startsWith("Imported from ") ? note.slice("Imported from ".length).trim() : "";
+}
+
+function statementImportId(fileName, size, lastModified) {
+  return `statement-${stableHash(`${fileName}|${Number(size) || 0}|${Number(lastModified) || 0}`)}`;
+}
+
 function stableHash(value) {
   let hash = 0;
   for (const char of String(value)) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
@@ -554,11 +769,67 @@ function getVisibleTransactions(transactions, ui) {
       if (entry.transactionDate && entry.transactionDate > ui.endDate) return false;
       if (ui.card !== "all" && entry.cardId !== ui.card) return false;
       if (ui.status !== "all" && entry.status !== ui.status) return false;
-      if (ui.amazonOnly && !entry.amazon) return false;
+      if (ui.purchaseType === "amazon" && !entry.amazon) return false;
+      if (ui.purchaseType === "other" && entry.amazon) return false;
       if (!term) return true;
       return [entry.merchant, entry.orderNumber, entry.evidence, entry.note, entry.cardId].join(" ").toLowerCase().includes(term);
     })
-    .sort((left, right) => String(right.transactionDate).localeCompare(String(left.transactionDate)));
+    .sort(transactionSorter(ui.sort));
+}
+
+function transactionSorter(sort) {
+  if (sort === "oldest") {
+    return (left, right) => String(left.transactionDate).localeCompare(String(right.transactionDate));
+  }
+  if (sort === "amount-high") {
+    return (left, right) => Math.abs(Number(right.amount) || 0) - Math.abs(Number(left.amount) || 0);
+  }
+  if (sort === "amount-low") {
+    return (left, right) => Math.abs(Number(left.amount) || 0) - Math.abs(Number(right.amount) || 0);
+  }
+  return (left, right) => String(right.transactionDate).localeCompare(String(left.transactionDate));
+}
+
+function summarizePurchaseTypes(transactions) {
+  const summary = {
+    all: { count: 0, chargeCount: 0, charges: 0 },
+    amazon: { count: 0, chargeCount: 0, charges: 0 },
+    other: { count: 0, chargeCount: 0, charges: 0 },
+  };
+  transactions.forEach((entry) => {
+    const amount = Number(entry.amount) || 0;
+    const type = entry.amazon ? "amazon" : "other";
+    summary.all.count += 1;
+    summary[type].count += 1;
+    if (amount > 0) {
+      summary.all.chargeCount += 1;
+      summary[type].chargeCount += 1;
+      summary.all.charges += amount;
+      summary[type].charges += amount;
+    }
+  });
+  return summary;
+}
+
+function summarizeActivity(transactions) {
+  return transactions.reduce((summary, entry) => {
+    const amount = Number(entry.amount) || 0;
+    summary.count += 1;
+    summary.net += amount;
+    if (amount > 0) {
+      summary.charges += amount;
+      summary.chargeCount += 1;
+    } else if (amount < 0) {
+      summary.credits += Math.abs(amount);
+      summary.creditCount += 1;
+    }
+    return summary;
+  }, { count: 0, charges: 0, chargeCount: 0, credits: 0, creditCount: 0, net: 0 });
+}
+
+function purchaseClassification(entry) {
+  if (entry.amazon) return Number(entry.amount) < 0 ? "Amazon business refund" : "Amazon business purchase";
+  return Number(entry.amount) < 0 ? "Other credit" : "Other bill";
 }
 
 function summarize(transactions) {
@@ -629,6 +900,12 @@ function formatDate(value) {
   if (!value) return "—";
   const date = new Date(`${value}T12:00:00`);
   return Number.isNaN(date.getTime()) ? value : shortDate.format(date);
+}
+
+function formatImportDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : shortDate.format(date);
 }
 
 function exportCsv(transactions, cards) {
