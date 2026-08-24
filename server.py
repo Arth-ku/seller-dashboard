@@ -102,7 +102,9 @@ APPAREL_BRANDS = (
     "Adidas",
 )
 HVAC_MIN_BOX_ID = 700
-HVAC_MAX_BOX_ID = 800
+# 800 is deliberately excluded: it belongs to Units (800-999). Keeping HVAC at 800
+# inclusive made box 800 a member of both categories and double-counted it.
+HVAC_MAX_BOX_ID = 799
 HVAC_BRANDS = (
     "Carrier",
     "Trane",

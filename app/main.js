@@ -56,8 +56,10 @@ const CATALOGS = {
   hvac: {
     label: "HVAC",
     from: 700,
-    to: 800,
-    rangeLabel: "700-800",
+    // 800 is excluded on purpose: it belongs to Units (800-999). With HVAC ending at
+    // 800 inclusive, box 800 matched both categories and was counted twice.
+    to: 799,
+    rangeLabel: "700-799",
     description: "HVAC systems, AC units, dehumidifiers, and related equipment.",
     publicPath: "/hvac",
   },
@@ -798,6 +800,7 @@ const INVENTORY_RESCAN_MS = 2500;
 let inventoryScanStream = null;
 let inventoryScanFrame = null;
 let inventoryScanTimeout = null;
+let inventoryScanVideo = null;
 
 function getInventoryCheck() {
   const check = state.meta?.inventoryCheck;
@@ -914,25 +917,39 @@ async function recordInventoryScan(rawValue) {
 
   const row = findRowByBoxId(boxId);
   const timestamp = new Date().toISOString();
-  const alreadyCounted = Boolean(row ? check.scanned[boxId] : check.unexpected[boxId]);
+  const alreadyCounted = Boolean(check.scanned[boxId]);
+  let createdRow = false;
 
-  if (row) {
-    check.scanned[boxId] = timestamp;
-    const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
-    state.productDetails[boxId] = { ...detail, boxId, lastSeenAt: timestamp };
-  } else {
+  // A scanned box that is not in the list is still physically here, so create a
+  // row for it rather than only noting it. That keeps the find - and its photos,
+  // title and description added later - attached to the real box ID.
+  if (!row) {
+    const created = createEmptyRow(state.rows);
+    created.boxId = boxId;
+    created.isDraft = true;
+    created.addedByScan = timestamp;
+    state.rows = [created, ...state.rows];
     check.unexpected[boxId] = timestamp;
+    createdRow = true;
   }
 
+  check.scanned[boxId] = timestamp;
+  const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
+  state.productDetails[boxId] = { ...detail, boxId, lastSeenAt: timestamp };
+
   state.meta = { ...state.meta, inventoryCheck: check };
-  await saveAppState({ meta: state.meta, productDetails: state.productDetails });
+  await saveAppState({
+    rows: state.rows,
+    meta: state.meta,
+    productDetails: state.productDetails,
+  });
 
   let status = "present";
-  if (!row) {
-    status = "unexpected";
+  if (createdRow) {
+    status = "created";
   } else if (alreadyCounted) {
     status = "duplicate";
-  } else if (row.archived) {
+  } else if (row?.archived) {
     status = "archived";
   }
 
@@ -943,9 +960,15 @@ async function recordInventoryScan(rawValue) {
 
 function closeInventoryScanner() {
   if (inventoryScanFrame) {
-    window.cancelAnimationFrame(inventoryScanFrame);
+    // Cancel with whichever API scheduled it.
+    if (inventoryScanVideo && typeof inventoryScanVideo.cancelVideoFrameCallback === "function") {
+      inventoryScanVideo.cancelVideoFrameCallback(inventoryScanFrame);
+    } else {
+      window.cancelAnimationFrame(inventoryScanFrame);
+    }
     inventoryScanFrame = null;
   }
+  inventoryScanVideo = null;
   if (inventoryScanTimeout) {
     window.clearTimeout(inventoryScanTimeout);
     inventoryScanTimeout = null;
@@ -982,18 +1005,29 @@ async function scanWithBarcodeDetector(detector, video) {
   return codes[0]?.rawValue || "";
 }
 
+// jsQR is pure JS and cost scales with pixel count, so decode a downscaled centre
+// crop rather than the whole frame: it is where the user aims, and it is far fewer
+// pixels per attempt. "dontInvert" halves the work again (box labels are dark-on-light).
 function scanWithJsQr(video, canvas, context) {
   if (!video.videoWidth || !video.videoHeight) {
     return "";
   }
-  const maxWidth = 900;
-  const scale = Math.min(1, maxWidth / video.videoWidth);
-  canvas.width = Math.max(1, Math.floor(video.videoWidth * scale));
-  canvas.height = Math.max(1, Math.floor(video.videoHeight * scale));
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const cropRatio = 0.72;
+  const cropWidth = Math.floor(video.videoWidth * cropRatio);
+  const cropHeight = Math.floor(video.videoHeight * cropRatio);
+  const cropX = Math.floor((video.videoWidth - cropWidth) / 2);
+  const cropY = Math.floor((video.videoHeight - cropHeight) / 2);
+
+  const maxWidth = 480;
+  const scale = Math.min(1, maxWidth / cropWidth);
+  canvas.width = Math.max(1, Math.floor(cropWidth * scale));
+  canvas.height = Math.max(1, Math.floor(cropHeight * scale));
+  context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   return window.jsQR(imageData.data, imageData.width, imageData.height, {
-    inversionAttempts: "attemptBoth",
+    inversionAttempts: "dontInvert",
   })?.data || "";
 }
 
@@ -1005,6 +1039,8 @@ function describeScanResult(result) {
       return { cls: "is-duplicate", text: `${result.boxId} already counted` };
     case "archived":
       return { cls: "is-duplicate", text: `${result.boxId} found (archived row)` };
+    case "created":
+      return { cls: "is-unexpected", text: `${result.boxId} was not in the list - added it` };
     case "unexpected":
       return { cls: "is-unexpected", text: `${result.boxId} is not in the inventory` };
     case "no-check":
@@ -1046,7 +1082,10 @@ async function openInventoryScanner() {
     <div class="inventory-scan-backdrop" data-close-scan></div>
     <section class="inventory-scan-dialog" role="dialog" aria-modal="true" aria-label="Inventory scanner">
       <button class="inventory-scan-close" type="button" data-close-scan>Done</button>
-      <video id="inventory-camera" class="inventory-scan-camera" autoplay muted playsinline></video>
+      <div class="inventory-scan-viewport">
+        <video id="inventory-camera" class="inventory-scan-camera" autoplay muted playsinline></video>
+        <div class="inventory-scan-frame" aria-hidden="true"></div>
+      </div>
       <p id="inventory-scan-status" class="inventory-scan-status">Opening camera...</p>
       <div id="inventory-scan-feed" class="scan-feed"></div>
     </section>
@@ -1062,6 +1101,7 @@ async function openInventoryScanner() {
   const status = overlay.querySelector("#inventory-scan-status");
   const feed = overlay.querySelector("#inventory-scan-feed");
   const video = overlay.querySelector("#inventory-camera");
+  inventoryScanVideo = video;
 
   // Browsers only expose the camera on a secure origin.
   if (!window.isSecureContext) {
@@ -1070,12 +1110,30 @@ async function openInventoryScanner() {
   }
 
   try {
+    // A sharper, higher-resolution frame locks on from further away, and continuous
+    // autofocus stops the "hold still until it focuses" pause.
     inventoryScanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+      },
       audio: false,
     });
     video.srcObject = inventoryScanStream;
     await video.play();
+
+    // Not supported everywhere; ignore failures rather than break the scanner.
+    try {
+      const track = inventoryScanStream.getVideoTracks()[0];
+      const caps = track?.getCapabilities?.() || {};
+      if (Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
+        await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+      }
+    } catch {
+      // keep scanning with default focus behaviour
+    }
   } catch {
     status.textContent = "Camera unavailable or permission denied. You can type box IDs instead.";
     return;
@@ -1101,12 +1159,30 @@ async function openInventoryScanner() {
 
   // Keep scanning continuously; debounce so holding one code steady does not
   // re-record it dozens of times per second.
+  //
+  // Speed: the old loop slept 160ms between every attempt, which is why a code had
+  // to be held in frame. BarcodeDetector is hardware-backed, so run it every video
+  // frame with no sleep. jsQR is pure JS, so give it a small yield to keep the UI
+  // responsive - still ~4x more attempts per second than before.
   const recentlyHandled = new Map();
-  const queueNext = (delay = 160) => {
-    inventoryScanTimeout = window.setTimeout(() => {
-      inventoryScanTimeout = null;
-      inventoryScanFrame = window.requestAnimationFrame(scanTick);
-    }, delay);
+  const idleDelay = detector ? 0 : 40;
+  const queueNext = (delay = idleDelay) => {
+    const schedule = () => {
+      if (typeof video.requestVideoFrameCallback === "function") {
+        inventoryScanFrame = video.requestVideoFrameCallback(() => scanTick());
+      } else {
+        inventoryScanFrame = window.requestAnimationFrame(scanTick);
+      }
+    };
+
+    if (delay > 0) {
+      inventoryScanTimeout = window.setTimeout(() => {
+        inventoryScanTimeout = null;
+        schedule();
+      }, delay);
+      return;
+    }
+    schedule();
   };
 
   const scanTick = async () => {
@@ -1135,7 +1211,7 @@ async function openInventoryScanner() {
         pushScanFeed(feed, status, result);
         updateInventoryScanProgress();
       }
-      queueNext(500);
+      queueNext(250);
       return;
     }
 
@@ -1152,11 +1228,14 @@ function updateInventoryScanProgress() {
   if (!check) {
     return;
   }
-  const expected = expectedInventoryRows();
+
+  const expected = expectedInventoryRows().filter(inventoryCategoryFilter);
   const present = expected.filter((row) => check.scanned[String(row.boxId)]).length;
+  const scopeLabel = state.inventoryCategory ? CATALOGS[state.inventoryCategory].label : "All inventory";
+
   const node = document.querySelector("#inventory-progress-text");
   if (node) {
-    node.textContent = `${present} of ${expected.length} present`;
+    node.textContent = `${present} of ${expected.length} present · ${scopeLabel}`;
   }
   const bar = document.querySelector("#inventory-progress-bar");
   if (bar) {
@@ -1208,21 +1287,52 @@ function renderInventoryCheckPage() {
     String(right[1]).localeCompare(String(left[1])),
   );
 
-  const percent = expected.length ? Math.round((presentRows.length / expected.length) * 100) : 0;
+  // Counters follow the selected category so the bar answers "how far through
+  // HVAC am I", not just "how far through everything".
+  const scopedExpected = expected.filter(inventoryCategoryFilter);
+  const scopedPresent = scopedExpected.filter((row) => scanned[String(row.boxId)]);
+  const scopedMissing = scopedExpected.filter((row) => !scanned[String(row.boxId)]);
+  const percent = scopedExpected.length
+    ? Math.round((scopedPresent.length / scopedExpected.length) * 100)
+    : 0;
+  const scopeLabel = state.inventoryCategory ? CATALOGS[state.inventoryCategory].label : "All inventory";
   const tab = state.inventoryTab;
 
   const main = document.createElement("main");
   main.className = "shell";
 
-  const categoryButtons = [{ key: "", label: "All" }]
-    .concat(CATEGORY_ORDER.map((key) => ({ key, label: CATALOGS[key].label })))
-    .map(
-      ({ key, label }) => `
-        <button class="chip ${state.inventoryCategory === key ? "is-active" : ""}" type="button" data-inventory-category="${escapeAttribute(key)}">
-          ${escapeHtml(label)}
-        </button>
-      `,
+  const categoryCards = [{ key: "", label: "All inventory", rangeLabel: "Everything on site" }]
+    .concat(
+      CATEGORY_ORDER.map((key) => ({
+        key,
+        label: CATALOGS[key].label,
+        rangeLabel: CATALOGS[key].rangeLabel || "",
+      })),
     )
+    .map(({ key, label, rangeLabel }) => {
+      const rows = key
+        ? expected.filter((row) => rowBelongsToCatalog(row, CATALOGS[key]))
+        : expected;
+      const done = rows.filter((row) => scanned[String(row.boxId)]).length;
+      const pct = rows.length ? Math.round((done / rows.length) * 100) : 0;
+      const complete = rows.length > 0 && done === rows.length;
+      return `
+        <button
+          class="inventory-cat ${state.inventoryCategory === key ? "is-active" : ""} ${complete ? "is-complete" : ""}"
+          type="button"
+          data-inventory-category="${escapeAttribute(key)}"
+        >
+          <span class="inventory-cat-head">
+            <strong>${escapeHtml(label)}</strong>
+            <span class="inventory-cat-count">${done}/${rows.length}</span>
+          </span>
+          <span class="inventory-cat-track"><span class="inventory-cat-bar" style="width: ${pct}%"></span></span>
+          <span class="inventory-cat-meta">${
+            rows.length ? `${rows.length - done} left` : "No boxes"
+          }${rangeLabel ? ` &middot; ${escapeHtml(rangeLabel)}` : ""}</span>
+        </button>
+      `;
+    })
     .join("");
 
   const historyMarkup = getInventoryHistory()
@@ -1231,7 +1341,7 @@ function renderInventoryCheckPage() {
       (entry) => `
         <li class="inventory-history-item">
           <strong>${escapeHtml(formatDateTime(entry.finishedAt))}</strong>
-          <span>${entry.presentCount} present &middot; ${entry.missingCount} missing &middot; ${entry.unexpectedCount} unexpected</span>
+          <span>${entry.presentCount} present &middot; ${entry.missingCount} missing &middot; ${entry.unexpectedCount} added</span>
         </li>
       `,
     )
@@ -1266,13 +1376,13 @@ function renderInventoryCheckPage() {
               <div class="inventory-progress-track">
                 <div id="inventory-progress-bar" class="inventory-progress-bar" style="width: ${percent}%"></div>
               </div>
-              <p id="inventory-progress-text" class="inventory-progress-text">${presentRows.length} of ${expected.length} present</p>
+              <p id="inventory-progress-text" class="inventory-progress-text">${scopedPresent.length} of ${scopedExpected.length} present &middot; ${escapeHtml(scopeLabel)}</p>
             </div>
 
             <div class="inventory-stats">
-              ${inventoryStatRow("Present", presentRows.length, "is-present")}
-              ${inventoryStatRow("Still missing", missingRows.length, "is-missing")}
-              ${inventoryStatRow("Unexpected", unexpectedEntries.length, "is-unexpected")}
+              ${inventoryStatRow("Present", scopedPresent.length, "is-present")}
+              ${inventoryStatRow("Still missing", scopedMissing.length, "is-missing")}
+              ${inventoryStatRow("Added by scan", unexpectedEntries.length, "is-unexpected")}
             </div>
 
             <div class="inventory-actions">
@@ -1284,13 +1394,14 @@ function renderInventoryCheckPage() {
               <button id="inventory-finish-button" class="button ghost" type="button">Finish check</button>
             </div>
 
+            <div class="inventory-cats">${categoryCards}</div>
+
             <div class="inventory-filters">
               <div class="inventory-tabs">
-                <button class="chip ${tab === "missing" ? "is-active" : ""}" type="button" data-inventory-tab="missing">Missing (${missingRows.length})</button>
-                <button class="chip ${tab === "present" ? "is-active" : ""}" type="button" data-inventory-tab="present">Present (${presentRows.length})</button>
-                <button class="chip ${tab === "unexpected" ? "is-active" : ""}" type="button" data-inventory-tab="unexpected">Unexpected (${unexpectedEntries.length})</button>
+                <button class="chip ${tab === "missing" ? "is-active" : ""}" type="button" data-inventory-tab="missing">Not scanned (${scopedMissing.length})</button>
+                <button class="chip ${tab === "present" ? "is-active" : ""}" type="button" data-inventory-tab="present">Scanned (${scopedPresent.length})</button>
+                <button class="chip ${tab === "unexpected" ? "is-active" : ""}" type="button" data-inventory-tab="unexpected">Added by scan (${unexpectedEntries.length})</button>
               </div>
-              ${tab === "unexpected" ? "" : `<div class="inventory-categories">${categoryButtons}</div>`}
             </div>
 
             <ul class="inventory-list">
@@ -1334,13 +1445,13 @@ function renderInventoryCheckPage() {
                         .map(([boxId, at]) =>
                           inventoryListItem({
                             boxId,
-                            itemName: "Not in inventory list",
+                            itemName: "Added during this check",
                             at,
                             tone: "is-unexpected",
                           }),
                         )
                         .join("")
-                    : `<li class="inventory-empty">No unexpected boxes found.</li>`
+                    : `<li class="inventory-empty">No new boxes were added during this check.</li>`
                   : ""
               }
             </ul>

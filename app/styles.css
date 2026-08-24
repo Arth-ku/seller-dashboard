@@ -3763,3 +3763,90 @@ a.pill-link {
     grid-column: 1 / -1;
   }
 }
+
+/* Inventory check: per-category progress cards */
+.inventory-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.inventory-cat {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-strong);
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.inventory-cat:hover {
+  border-color: var(--brand);
+}
+
+.inventory-cat.is-active {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(29, 93, 79, 0.18);
+}
+
+.inventory-cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inventory-cat-count {
+  font-weight: 700;
+  color: var(--brand-strong);
+}
+
+.inventory-cat.is-complete .inventory-cat-count::after {
+  content: " \2713";
+}
+
+.inventory-cat-track {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(31, 33, 27, 0.1);
+  overflow: hidden;
+}
+
+.inventory-cat-bar {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  transition: width 200ms ease;
+}
+
+.inventory-cat.is-complete .inventory-cat-bar {
+  background: var(--brand-strong);
+}
+
+.inventory-cat-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Scanner framing guide */
+.inventory-scan-viewport {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.inventory-scan-frame {
+  position: absolute;
+  inset: 14%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
