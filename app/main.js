@@ -5,6 +5,7 @@ import {
   extractLeadingBoxId,
   normalizeRowState,
   pruneRows,
+  sanitizeBoxId,
 } from "./csv.js?v=20260715b";
 import {
   fetchSession,
@@ -82,6 +83,9 @@ const state = {
   saveMessage: "",
   session: { authenticated: false, authRequired: false },
   loginError: "",
+  inventoryTab: "missing",
+  inventoryCategory: "",
+  inventoryManualEntry: "",
   catalogSearch: "",
   historySnapshots: [],
   viewingSnapshot: null,
@@ -267,6 +271,8 @@ function render() {
     renderOrderProcessPage({ app, appPath, basePath: BASE_PATH });
   } else if (route.page === "health-rank") {
     renderHealthRankPage();
+  } else if (route.page === "inventory-check") {
+    renderInventoryCheckPage();
   } else if (route.page === "catalog") {
     renderCatalogPage(route.catalog);
   } else if (route.subpage === "authenticity" && route.boxId) {
@@ -772,6 +778,650 @@ function clearHealthRefresh() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Physical inventory check
+//
+// A check is an audit session: start it, walk the site scanning box QR codes
+// (which encode the public product URL, e.g. https://authenticitycheck.net/800),
+// and every scan marks that box present with a timestamp. Boxes never scanned
+// stay in the Missing list. Scans of box IDs not in the inventory land in
+// Unexpected. Each scan also stamps productDetails[boxId].lastSeenAt, which is
+// what the box's own product page shows.
+//
+// Archived rows are excluded from "expected on site" - they are sold/gone - but
+// scanning one still records it, so a box that resurfaces is not silently lost.
+// ---------------------------------------------------------------------------
+
+const INVENTORY_HISTORY_LIMIT = 20;
+const INVENTORY_RESCAN_MS = 2500;
+
+let inventoryScanStream = null;
+let inventoryScanFrame = null;
+let inventoryScanTimeout = null;
+
+function getInventoryCheck() {
+  const check = state.meta?.inventoryCheck;
+  if (!check || !check.id) {
+    return null;
+  }
+  return {
+    id: check.id,
+    startedAt: check.startedAt || "",
+    scanned: check.scanned && typeof check.scanned === "object" ? check.scanned : {},
+    unexpected: check.unexpected && typeof check.unexpected === "object" ? check.unexpected : {},
+  };
+}
+
+function getInventoryHistory() {
+  return Array.isArray(state.meta?.inventoryCheckHistory) ? state.meta.inventoryCheckHistory : [];
+}
+
+// Boxes a check should account for on site.
+function expectedInventoryRows() {
+  return (Array.isArray(state.rows) ? state.rows : []).filter(
+    (row) => row && String(row.boxId || "").trim() && !row.archived,
+  );
+}
+
+function findRowByBoxId(boxId) {
+  return (Array.isArray(state.rows) ? state.rows : []).find(
+    (row) => String(row?.boxId || "").trim() === boxId,
+  ) || null;
+}
+
+// QR codes hold the public product URL. Accept a full URL, a bare path, or a
+// plain box id, and tolerate the /authenticity suffix.
+function parseScannedBoxId(rawValue) {
+  const text = String(rawValue || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  let candidate = text;
+  try {
+    candidate = new URL(text).pathname;
+  } catch {
+    // Not an absolute URL - treat the raw text as a path or bare id.
+  }
+
+  const parts = candidate
+    .split("/")
+    .filter(Boolean)
+    .filter((part) => part.toLowerCase() !== "authenticity");
+  const last = parts.length ? parts[parts.length - 1] : candidate;
+  const cleaned = sanitizeBoxId(last);
+  return cleaned ? canonicalBoxId(cleaned) : "";
+}
+
+async function startInventoryCheck() {
+  state.meta = {
+    ...state.meta,
+    inventoryCheck: {
+      id: `check-${Date.now()}`,
+      startedAt: new Date().toISOString(),
+      scanned: {},
+      unexpected: {},
+    },
+  };
+  await saveAppState({ meta: state.meta });
+  setSaveMessage("Check started. Scan a box to mark it present.", {
+    kind: "success",
+    heading: "Check started",
+  });
+  render();
+}
+
+async function finishInventoryCheck() {
+  const check = getInventoryCheck();
+  if (!check) {
+    return;
+  }
+
+  const missing = expectedInventoryRows().filter((row) => !check.scanned[String(row.boxId)]);
+  const summary = {
+    id: check.id,
+    startedAt: check.startedAt,
+    finishedAt: new Date().toISOString(),
+    presentCount: Object.keys(check.scanned).length,
+    missingCount: missing.length,
+    unexpectedCount: Object.keys(check.unexpected).length,
+    missingBoxIds: missing.map((row) => String(row.boxId)).slice(0, 500),
+  };
+
+  state.meta = {
+    ...state.meta,
+    inventoryCheck: null,
+    inventoryCheckHistory: [summary, ...getInventoryHistory()].slice(0, INVENTORY_HISTORY_LIMIT),
+  };
+  await saveAppState({ meta: state.meta });
+  setSaveMessage(`Finished: ${summary.presentCount} present, ${summary.missingCount} missing.`, {
+    kind: "success",
+    heading: "Check finished",
+  });
+  render();
+}
+
+async function recordInventoryScan(rawValue) {
+  const check = getInventoryCheck();
+  if (!check) {
+    return { status: "no-check" };
+  }
+
+  const boxId = parseScannedBoxId(rawValue);
+  if (!boxId) {
+    return { status: "unreadable" };
+  }
+
+  const row = findRowByBoxId(boxId);
+  const timestamp = new Date().toISOString();
+  const alreadyCounted = Boolean(row ? check.scanned[boxId] : check.unexpected[boxId]);
+
+  if (row) {
+    check.scanned[boxId] = timestamp;
+    const detail = state.productDetails[boxId] || createEmptyDetail(boxId);
+    state.productDetails[boxId] = { ...detail, boxId, lastSeenAt: timestamp };
+  } else {
+    check.unexpected[boxId] = timestamp;
+  }
+
+  state.meta = { ...state.meta, inventoryCheck: check };
+  await saveAppState({ meta: state.meta, productDetails: state.productDetails });
+
+  let status = "present";
+  if (!row) {
+    status = "unexpected";
+  } else if (alreadyCounted) {
+    status = "duplicate";
+  } else if (row.archived) {
+    status = "archived";
+  }
+
+  return { status, boxId, itemName: row?.itemName || "", timestamp };
+}
+
+// --- scanner ---------------------------------------------------------------
+
+function closeInventoryScanner() {
+  if (inventoryScanFrame) {
+    window.cancelAnimationFrame(inventoryScanFrame);
+    inventoryScanFrame = null;
+  }
+  if (inventoryScanTimeout) {
+    window.clearTimeout(inventoryScanTimeout);
+    inventoryScanTimeout = null;
+  }
+  if (inventoryScanStream) {
+    inventoryScanStream.getTracks().forEach((track) => track.stop());
+    inventoryScanStream = null;
+  }
+  document.querySelector(".inventory-scan-modal")?.remove();
+}
+
+// jsQR is only needed as a fallback where BarcodeDetector is missing (notably
+// iOS Safari), so load the 250KB library on demand rather than on every visit.
+async function ensureJsQr() {
+  if (typeof window.jsQR === "function") {
+    return true;
+  }
+  try {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = appPath("/app/vendor/jsQR.js");
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.append(script);
+    });
+  } catch {
+    return false;
+  }
+  return typeof window.jsQR === "function";
+}
+
+async function scanWithBarcodeDetector(detector, video) {
+  const codes = await detector.detect(video);
+  return codes[0]?.rawValue || "";
+}
+
+function scanWithJsQr(video, canvas, context) {
+  if (!video.videoWidth || !video.videoHeight) {
+    return "";
+  }
+  const maxWidth = 900;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  canvas.width = Math.max(1, Math.floor(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.floor(video.videoHeight * scale));
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  return window.jsQR(imageData.data, imageData.width, imageData.height, {
+    inversionAttempts: "attemptBoth",
+  })?.data || "";
+}
+
+function describeScanResult(result) {
+  switch (result.status) {
+    case "present":
+      return { cls: "is-present", text: `${result.boxId} confirmed present` };
+    case "duplicate":
+      return { cls: "is-duplicate", text: `${result.boxId} already counted` };
+    case "archived":
+      return { cls: "is-duplicate", text: `${result.boxId} found (archived row)` };
+    case "unexpected":
+      return { cls: "is-unexpected", text: `${result.boxId} is not in the inventory` };
+    case "no-check":
+      return { cls: "is-unexpected", text: "No active check" };
+    default:
+      return { cls: "is-unexpected", text: "QR code not recognised" };
+  }
+}
+
+function pushScanFeed(feed, status, result) {
+  const info = describeScanResult(result);
+  status.textContent = info.text;
+
+  const line = document.createElement("p");
+  line.className = `scan-feed-line ${info.cls}`;
+  line.textContent = result.itemName ? `${info.text} - ${result.itemName}` : info.text;
+  feed.prepend(line);
+  while (feed.childElementCount > 6) {
+    feed.lastElementChild.remove();
+  }
+
+  if (typeof navigator.vibrate === "function") {
+    navigator.vibrate(result.status === "present" ? 40 : [20, 60, 20]);
+  }
+}
+
+async function openInventoryScanner() {
+  if (!getInventoryCheck()) {
+    setSaveMessage("Start a check before scanning.", { kind: "warning" });
+    render();
+    return;
+  }
+
+  closeInventoryScanner();
+
+  const overlay = document.createElement("div");
+  overlay.className = "inventory-scan-modal";
+  overlay.innerHTML = `
+    <div class="inventory-scan-backdrop" data-close-scan></div>
+    <section class="inventory-scan-dialog" role="dialog" aria-modal="true" aria-label="Inventory scanner">
+      <button class="inventory-scan-close" type="button" data-close-scan>Done</button>
+      <video id="inventory-camera" class="inventory-scan-camera" autoplay muted playsinline></video>
+      <p id="inventory-scan-status" class="inventory-scan-status">Opening camera...</p>
+      <div id="inventory-scan-feed" class="scan-feed"></div>
+    </section>
+  `;
+  document.body.append(overlay);
+  overlay.querySelectorAll("[data-close-scan]").forEach((element) => {
+    element.addEventListener("click", () => {
+      closeInventoryScanner();
+      render();
+    });
+  });
+
+  const status = overlay.querySelector("#inventory-scan-status");
+  const feed = overlay.querySelector("#inventory-scan-feed");
+  const video = overlay.querySelector("#inventory-camera");
+
+  // Browsers only expose the camera on a secure origin.
+  if (!window.isSecureContext) {
+    status.textContent = "Camera needs an https connection. Open the dashboard over https, or type box IDs instead.";
+    return;
+  }
+
+  try {
+    inventoryScanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false,
+    });
+    video.srcObject = inventoryScanStream;
+    await video.play();
+  } catch {
+    status.textContent = "Camera unavailable or permission denied. You can type box IDs instead.";
+    return;
+  }
+
+  let detector = null;
+  if ("BarcodeDetector" in window) {
+    try {
+      detector = new BarcodeDetector({ formats: ["qr_code"] });
+    } catch {
+      detector = null;
+    }
+  }
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!detector && !((await ensureJsQr()) && context)) {
+    status.textContent = "QR reader failed to load. Type box IDs instead.";
+    return;
+  }
+
+  status.textContent = "Point the camera at a box QR code.";
+
+  // Keep scanning continuously; debounce so holding one code steady does not
+  // re-record it dozens of times per second.
+  const recentlyHandled = new Map();
+  const queueNext = (delay = 160) => {
+    inventoryScanTimeout = window.setTimeout(() => {
+      inventoryScanTimeout = null;
+      inventoryScanFrame = window.requestAnimationFrame(scanTick);
+    }, delay);
+  };
+
+  const scanTick = async () => {
+    if (!inventoryScanStream) {
+      return;
+    }
+
+    let rawValue = "";
+    try {
+      rawValue = detector
+        ? await scanWithBarcodeDetector(detector, video)
+        : scanWithJsQr(video, canvas, context);
+    } catch {
+      rawValue = "";
+    }
+
+    if (rawValue) {
+      const boxId = parseScannedBoxId(rawValue);
+      const last = boxId ? recentlyHandled.get(boxId) || 0 : 0;
+      if (boxId && Date.now() - last > INVENTORY_RESCAN_MS) {
+        recentlyHandled.set(boxId, Date.now());
+        const result = await recordInventoryScan(rawValue);
+        if (!document.querySelector(".inventory-scan-modal")) {
+          return;
+        }
+        pushScanFeed(feed, status, result);
+        updateInventoryScanProgress();
+      }
+      queueNext(500);
+      return;
+    }
+
+    queueNext();
+  };
+
+  scanTick();
+}
+
+// The page behind the overlay is not re-rendered while scanning (that would
+// tear down the video element), so nudge the counters in place instead.
+function updateInventoryScanProgress() {
+  const check = getInventoryCheck();
+  if (!check) {
+    return;
+  }
+  const expected = expectedInventoryRows();
+  const present = expected.filter((row) => check.scanned[String(row.boxId)]).length;
+  const node = document.querySelector("#inventory-progress-text");
+  if (node) {
+    node.textContent = `${present} of ${expected.length} present`;
+  }
+  const bar = document.querySelector("#inventory-progress-bar");
+  if (bar) {
+    bar.style.width = expected.length ? `${Math.round((present / expected.length) * 100)}%` : "0%";
+  }
+}
+
+// --- page ------------------------------------------------------------------
+
+function inventoryCategoryFilter(row) {
+  if (!state.inventoryCategory) {
+    return true;
+  }
+  const catalog = CATALOGS[state.inventoryCategory];
+  return catalog ? rowBelongsToCatalog(row, catalog) : true;
+}
+
+function inventoryStatRow(label, value, tone = "") {
+  return `
+    <article class="inventory-stat ${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${value}</strong>
+    </article>
+  `;
+}
+
+function inventoryListItem({ boxId, itemName, at, tone, note }) {
+  const href = appPath(`/${encodeURIComponent(boxId)}`);
+  return `
+    <li class="inventory-item ${tone}">
+      <a class="boxid-link" data-route href="${href}">${escapeHtml(boxId)}</a>
+      <span class="inventory-item-name">${escapeHtml(itemName || "No item name")}</span>
+      <span class="inventory-item-meta">${escapeHtml(at ? formatDateTime(at) : note || "")}</span>
+    </li>
+  `;
+}
+
+function renderInventoryCheckPage() {
+  const check = getInventoryCheck();
+  const expected = expectedInventoryRows();
+  const scanned = check?.scanned || {};
+  const unexpected = check?.unexpected || {};
+
+  const presentRows = expected.filter((row) => scanned[String(row.boxId)]);
+  const missingRows = expected.filter((row) => !scanned[String(row.boxId)]);
+  const visibleMissing = missingRows.filter(inventoryCategoryFilter);
+  const visiblePresent = presentRows.filter(inventoryCategoryFilter);
+  const unexpectedEntries = Object.entries(unexpected).sort((left, right) =>
+    String(right[1]).localeCompare(String(left[1])),
+  );
+
+  const percent = expected.length ? Math.round((presentRows.length / expected.length) * 100) : 0;
+  const tab = state.inventoryTab;
+
+  const main = document.createElement("main");
+  main.className = "shell";
+
+  const categoryButtons = [{ key: "", label: "All" }]
+    .concat(CATEGORY_ORDER.map((key) => ({ key, label: CATALOGS[key].label })))
+    .map(
+      ({ key, label }) => `
+        <button class="chip ${state.inventoryCategory === key ? "is-active" : ""}" type="button" data-inventory-category="${escapeAttribute(key)}">
+          ${escapeHtml(label)}
+        </button>
+      `,
+    )
+    .join("");
+
+  const historyMarkup = getInventoryHistory()
+    .slice(0, 5)
+    .map(
+      (entry) => `
+        <li class="inventory-history-item">
+          <strong>${escapeHtml(formatDateTime(entry.finishedAt))}</strong>
+          <span>${entry.presentCount} present &middot; ${entry.missingCount} missing &middot; ${entry.unexpectedCount} unexpected</span>
+        </li>
+      `,
+    )
+    .join("");
+
+  main.innerHTML = `
+    <section class="panel detail-panel">
+      <div class="detail-header">
+        <div>
+          <a class="back-link" data-route href="${appPath("/")}">Back to dashboard</a>
+          <p class="eyebrow">Physical Inventory</p>
+          <h1>Inventory check</h1>
+          <p class="detail-subtitle">
+            Scan each box's QR code to confirm it is on site. Every scan timestamps the box and
+            shows on its product page. Archived rows are not expected on site.
+          </p>
+        </div>
+        <div class="detail-meta">
+          ${
+            check
+              ? `<span class="detail-pill pill-public">Check running</span>
+                 <span class="detail-pill">Started ${escapeHtml(formatDateTime(check.startedAt))}</span>`
+              : `<span class="detail-pill">No check running</span>`
+          }
+        </div>
+      </div>
+
+      ${
+        check
+          ? `
+            <div class="inventory-progress">
+              <div class="inventory-progress-track">
+                <div id="inventory-progress-bar" class="inventory-progress-bar" style="width: ${percent}%"></div>
+              </div>
+              <p id="inventory-progress-text" class="inventory-progress-text">${presentRows.length} of ${expected.length} present</p>
+            </div>
+
+            <div class="inventory-stats">
+              ${inventoryStatRow("Present", presentRows.length, "is-present")}
+              ${inventoryStatRow("Still missing", missingRows.length, "is-missing")}
+              ${inventoryStatRow("Unexpected", unexpectedEntries.length, "is-unexpected")}
+            </div>
+
+            <div class="inventory-actions">
+              <button id="inventory-scan-button" class="button primary" type="button">Scan boxes</button>
+              <form id="inventory-manual-form" class="inventory-manual">
+                <input id="inventory-manual-input" type="text" inputmode="latin" placeholder="Type a box ID" value="${escapeAttribute(state.inventoryManualEntry)}" />
+                <button class="button secondary" type="submit">Mark present</button>
+              </form>
+              <button id="inventory-finish-button" class="button ghost" type="button">Finish check</button>
+            </div>
+
+            <div class="inventory-filters">
+              <div class="inventory-tabs">
+                <button class="chip ${tab === "missing" ? "is-active" : ""}" type="button" data-inventory-tab="missing">Missing (${missingRows.length})</button>
+                <button class="chip ${tab === "present" ? "is-active" : ""}" type="button" data-inventory-tab="present">Present (${presentRows.length})</button>
+                <button class="chip ${tab === "unexpected" ? "is-active" : ""}" type="button" data-inventory-tab="unexpected">Unexpected (${unexpectedEntries.length})</button>
+              </div>
+              ${tab === "unexpected" ? "" : `<div class="inventory-categories">${categoryButtons}</div>`}
+            </div>
+
+            <ul class="inventory-list">
+              ${
+                tab === "missing"
+                  ? visibleMissing.length
+                    ? visibleMissing
+                        .map((row) =>
+                          inventoryListItem({
+                            boxId: String(row.boxId),
+                            itemName: row.itemName,
+                            at: state.productDetails[String(row.boxId)]?.lastSeenAt || "",
+                            tone: "is-missing",
+                            note: "Never seen",
+                          }),
+                        )
+                        .join("")
+                    : `<li class="inventory-empty">Nothing missing here. Everything in this filter has been scanned.</li>`
+                  : ""
+              }
+              ${
+                tab === "present"
+                  ? visiblePresent.length
+                    ? visiblePresent
+                        .map((row) =>
+                          inventoryListItem({
+                            boxId: String(row.boxId),
+                            itemName: row.itemName,
+                            at: scanned[String(row.boxId)],
+                            tone: "is-present",
+                          }),
+                        )
+                        .join("")
+                    : `<li class="inventory-empty">No boxes scanned yet in this filter.</li>`
+                  : ""
+              }
+              ${
+                tab === "unexpected"
+                  ? unexpectedEntries.length
+                    ? unexpectedEntries
+                        .map(([boxId, at]) =>
+                          inventoryListItem({
+                            boxId,
+                            itemName: "Not in inventory list",
+                            at,
+                            tone: "is-unexpected",
+                          }),
+                        )
+                        .join("")
+                    : `<li class="inventory-empty">No unexpected boxes found.</li>`
+                  : ""
+              }
+            </ul>
+          `
+          : `
+            <div class="inventory-start">
+              <p>Start a check, then scan every box you can find. Anything you do not scan stays on the missing list.</p>
+              <button id="inventory-start-button" class="button primary" type="button">Start a new check</button>
+              <p class="muted-text">${expected.length} box${expected.length === 1 ? "" : "es"} are expected on site right now.</p>
+            </div>
+            ${
+              historyMarkup
+                ? `<section class="subpanel">
+                     <div class="subpanel-heading"><h2>Recent checks</h2></div>
+                     <ul class="inventory-history">${historyMarkup}</ul>
+                   </section>`
+                : ""
+            }
+          `
+      }
+    </section>
+  `;
+
+  app.append(main);
+  bindInventoryCheckEvents();
+}
+
+function bindInventoryCheckEvents() {
+  document.querySelector("#inventory-start-button")?.addEventListener("click", () => {
+    startInventoryCheck();
+  });
+
+  document.querySelector("#inventory-scan-button")?.addEventListener("click", () => {
+    openInventoryScanner();
+  });
+
+  document.querySelector("#inventory-finish-button")?.addEventListener("click", () => {
+    const check = getInventoryCheck();
+    const missing = check
+      ? expectedInventoryRows().filter((row) => !check.scanned[String(row.boxId)]).length
+      : 0;
+    const confirmed = window.confirm(
+      missing
+        ? `Finish this check? ${missing} box(es) are still missing and will be recorded as not found.`
+        : "Finish this check?",
+    );
+    if (confirmed) {
+      finishInventoryCheck();
+    }
+  });
+
+  document.querySelector("#inventory-manual-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = document.querySelector("#inventory-manual-input");
+    const value = input ? input.value.trim() : "";
+    if (!value) {
+      return;
+    }
+    const result = await recordInventoryScan(value);
+    state.inventoryManualEntry = "";
+    setSaveMessage(describeScanResult(result).text, {
+      kind: result.status === "present" ? "success" : "warning",
+    });
+    render();
+  });
+
+  document.querySelectorAll("[data-inventory-tab]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      state.inventoryTab = event.currentTarget.dataset.inventoryTab;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-inventory-category]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      state.inventoryCategory = event.currentTarget.dataset.inventoryCategory;
+      render();
+    });
+  });
+}
+
 function renderCatalogPage(catalogName) {
   const catalog = CATALOGS[catalogName];
   if (!catalog) {
@@ -1116,6 +1766,7 @@ function renderDashboard() {
           <a class="button ghost" data-route href="${appPath("/process")}">Order Process</a>
           <a class="button ghost" data-route href="${appPath("/lucy")}">Lucy</a>
           <a class="button ghost" data-route href="${appPath("/health-rank")}">Unit Health</a>
+          <a class="button ghost" data-route href="${appPath("/inventory-check")}">Inventory Check</a>
           <a class="button ghost" data-route href="${appPath("/units")}">Units</a>
           <a class="button ghost" data-route href="${appPath("/hvac")}">HVAC</a>
           <a class="button ghost" data-route href="${appPath("/apparel")}">Apparel</a>
@@ -1225,6 +1876,11 @@ function renderProductDetail(boxId) {
             ${group.quantity > 1 ? `<span class="detail-pill pill-linked">Qty ${group.quantity}</span>` : ""}
             ${linkedSourceBoxId ? `<span class="detail-pill pill-linked">Source ${escapeHtml(linkedSourceBoxId)}</span>` : ""}
             <span class="detail-pill">${row?.archived ? "Archived" : "Present"}</span>
+            <span class="detail-pill ${detail.lastSeenAt ? "pill-public" : ""}">${
+              detail.lastSeenAt
+                ? `Last seen ${escapeHtml(formatDateTime(detail.lastSeenAt))}`
+                : "Never scanned on site"
+            }</span>
             <span class="detail-pill ${row?.hidden ? "pill-hidden" : "pill-public"}">${row?.hidden ? "Hidden from public" : "Public"}</span>
             <span class="detail-pill">${escapeHtml(row?.priceListed || "No listed price")}</span>
             <span class="detail-pill">${escapeHtml(row?.soldThrough || "No sale platform")}</span>
@@ -1310,6 +1966,7 @@ function renderProductDetail(boxId) {
             </div>
             <dl class="snapshot-grid">
               ${buildSnapshotRow("Item Name", row?.itemName)}
+              ${buildSnapshotRow("Last seen on site", detail.lastSeenAt ? formatDateTime(detail.lastSeenAt) : "Never scanned")}
               ${buildSnapshotRow("Price Listed", row?.priceListed)}
               ${buildSnapshotRow("Revised", row?.revised)}
               ${buildSnapshotRow("Self Expense", row?.selfExpense)}
@@ -3962,6 +4619,14 @@ function getCurrentRoute() {
   if (parts[0] === "cards") {
     return {
       page: "cards",
+      boxId: "",
+      subpage: "",
+    };
+  }
+
+  if (parts[0] === "inventory-check") {
+    return {
+      page: "inventory-check",
       boxId: "",
       subpage: "",
     };
