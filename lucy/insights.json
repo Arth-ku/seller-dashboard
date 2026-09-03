@@ -56,15 +56,15 @@
       "value": "97"
     },
     {
-      "detail": "85 snapshots today",
+      "detail": "87 snapshots today",
       "label": "Dashboard health",
       "severity": "watch",
-      "value": "OK"
+      "value": "WARN"
     }
   ],
-  "generatedAt": "2026-09-02T21:20:39-04:00",
+  "generatedAt": "2026-09-02T21:50:43-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-02T21:20:39-04:00",
+  "publishedAt": "2026-09-02T21:50:43-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,10 +180,10 @@
     {
       "items": [
         {
-          "detail": "915.3 MB mirrored, /srv/seller-dashboard-backup",
+          "detail": "915.8 MB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "watch",
-          "value": "warn - 109 min old"
+          "value": "warn - 116 min old"
         }
       ],
       "summary": "needs attention",
