@@ -56,15 +56,15 @@
       "value": "97"
     },
     {
-      "detail": "21 snapshots today",
+      "detail": "23 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-09-04T05:01:38-04:00",
+  "generatedAt": "2026-09-04T05:31:43-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-04T05:01:38-04:00",
+  "publishedAt": "2026-09-04T05:31:43-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "21 snapshots reviewed.",
+          "detail": "23 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
