@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "12 critical, 11 watch, 144 prep",
+      "detail": "12 critical, 11 watch, 142 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "189"
+      "value": "187"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "108"
+      "value": "106"
     },
     {
-      "detail": "91 snapshots today",
+      "detail": "93 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-09-05T22:45:43-04:00",
+  "generatedAt": "2026-09-05T23:15:53-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-05T22:45:43-04:00",
+  "publishedAt": "2026-09-05T23:15:53-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "91 snapshots reviewed.",
+          "detail": "93 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -195,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "292 sold / $60587"
+          "value": "294 sold / $62617"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-09-05",
     "kind": "lucy-analyst",
-    "liveCount": 189,
+    "liveCount": 187,
     "publishedBy": "lucy-analyst",
     "rowCount": 536,
-    "soldCount": 347
+    "soldCount": 349
   },
   "status": "bad",
-  "summary": "189 live items across Apparel: 101, HVAC: 27, Units: 61. 108 quick wins. dashboard health: all ok."
+  "summary": "187 live items across Apparel: 101, HVAC: 25, Units: 61. 106 quick wins. dashboard health: all ok."
 }
