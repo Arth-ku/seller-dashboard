@@ -56,15 +56,15 @@
       "value": "106"
     },
     {
-      "detail": "67 snapshots today",
+      "detail": "69 snapshots today",
       "label": "Dashboard health",
       "severity": "watch",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-09-10T16:47:30-04:00",
+  "generatedAt": "2026-09-10T17:17:54-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-10T16:47:30-04:00",
+  "publishedAt": "2026-09-10T17:17:54-04:00",
   "schemaVersion": 1,
   "sections": [
     {
