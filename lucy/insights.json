@@ -56,15 +56,15 @@
       "value": "109"
     },
     {
-      "detail": "59 snapshots today",
+      "detail": "61 snapshots today",
       "label": "Dashboard health",
-      "severity": "ok",
-      "value": "OK"
+      "severity": "watch",
+      "value": "WARN"
     }
   ],
-  "generatedAt": "2026-09-20T14:45:58-04:00",
+  "generatedAt": "2026-09-20T15:16:10-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-20T14:45:58-04:00",
+  "publishedAt": "2026-09-20T15:16:10-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,13 +180,13 @@
     {
       "items": [
         {
-          "detail": "59 snapshots reviewed.",
-          "label": "Health journal",
-          "severity": "ok",
-          "value": "No dashboard health problems in today's journal."
+          "detail": "1.0 GB mirrored, /srv/seller-dashboard-backup",
+          "label": "NVMe backup mirror",
+          "severity": "watch",
+          "value": "warn - 112 min old"
         }
       ],
-      "summary": "all ok",
+      "summary": "needs attention",
       "title": "Dashboard health"
     },
     {
@@ -229,5 +229,5 @@
     "soldCount": 354
   },
   "status": "bad",
-  "summary": "190 live items across Apparel: 101, HVAC: 22, Units: 67. 109 quick wins. dashboard health: all ok."
+  "summary": "190 live items across Apparel: 101, HVAC: 22, Units: 67. 109 quick wins. dashboard health: needs attention."
 }
