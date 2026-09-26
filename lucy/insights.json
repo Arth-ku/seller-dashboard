@@ -38,7 +38,7 @@
   ],
   "cards": [
     {
-      "detail": "14 critical, 8 watch, 140 prep",
+      "detail": "14 critical, 7 watch, 140 prep",
       "label": "Live items",
       "severity": "bad",
       "value": "184"
@@ -56,15 +56,15 @@
       "value": "109"
     },
     {
-      "detail": "60 snapshots today",
+      "detail": "62 snapshots today",
       "label": "Dashboard health",
       "severity": "watch",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-09-26T15:07:27-04:00",
+  "generatedAt": "2026-09-26T15:37:30-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-26T15:07:27-04:00",
+  "publishedAt": "2026-09-26T15:37:30-04:00",
   "schemaVersion": 1,
   "sections": [
     {
