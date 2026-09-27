@@ -2,35 +2,35 @@
   "actions": [
     {
       "boxId": "3",
-      "evidence": "264 days listed; 163 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "265 days listed; 164 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
       "boxId": "582",
-      "evidence": "221 days listed; 131 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "222 days listed; 132 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 582: HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo"
     },
     {
       "boxId": "1",
-      "evidence": "562 days listed; 562 days no action; No boost note; Needs title/description",
+      "evidence": "563 days listed; 563 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 1: hdmi transmitter"
     },
     {
       "boxId": "2",
-      "evidence": "542 days listed; 373 days no action; No boost note; Needs title/description",
+      "evidence": "543 days listed; 374 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 2: Ev charger 1lvl"
     },
     {
       "boxId": "407",
-      "evidence": "416 days listed; 416 days no action; No boost note; Needs title/description",
+      "evidence": "417 days listed; 417 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
@@ -53,74 +53,74 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "110"
+      "value": "111"
     },
     {
-      "detail": "94 snapshots today",
+      "detail": "0 snapshots today",
       "label": "Dashboard health",
       "severity": "watch",
-      "value": "OK"
+      "value": "UNKNOWN"
     }
   ],
-  "generatedAt": "2026-09-26T23:40:00-04:00",
+  "generatedAt": "2026-09-27T00:10:00-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-09-26T23:40:00-04:00",
+  "publishedAt": "2026-09-27T00:10:00-04:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
           "boxId": "3",
-          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 264 days listed, 163 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 265 days listed, 164 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "582",
-          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 80 | 221 days listed, 131 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 80 | 222 days listed, 132 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 582",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "1",
-          "detail": "hdmi transmitter | Fix listing | score 76 | 562 days listed, 562 days no action, No boost note, Needs title/description",
+          "detail": "hdmi transmitter | Fix listing | score 76 | 563 days listed, 563 days no action, No boost note, Needs title/description",
           "label": "Box 1",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "2",
-          "detail": "Ev charger 1lvl | Fix listing | score 76 | 542 days listed, 373 days no action, No boost note, Needs title/description",
+          "detail": "Ev charger 1lvl | Fix listing | score 76 | 543 days listed, 374 days no action, No boost note, Needs title/description",
           "label": "Box 2",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "407",
-          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Fix listing | score 76 | 416 days listed, 416 days no action, No boost note, Needs title/description",
+          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Fix listing | score 76 | 417 days listed, 417 days no action, No boost note, Needs title/description",
           "label": "Box 407",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "419",
-          "detail": "table outdoor HPDE x2 | Fix listing | score 76 | 421 days listed, 421 days no action, No boost note, Needs title/description",
+          "detail": "table outdoor HPDE x2 | Fix listing | score 76 | 422 days listed, 422 days no action, No boost note, Needs title/description",
           "label": "Box 419",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "515",
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 310 days listed, 310 days no action, No boost note, Needs title/description",
+          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 311 days listed, 311 days no action, No boost note, Needs title/description",
           "label": "Box 515",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "520",
-          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 283 days listed, 283 days no action, No boost note, Needs title/description",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 284 days listed, 284 days no action, No boost note, Needs title/description",
           "label": "Box 520",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
@@ -180,13 +180,13 @@
     {
       "items": [
         {
-          "detail": "1.0 GB mirrored, /srv/seller-dashboard-backup",
-          "label": "NVMe backup mirror",
+          "detail": "0 snapshots reviewed.",
+          "label": "Health journal",
           "severity": "watch",
-          "value": "warn - 105 min old"
+          "value": "No health journal entries yet."
         }
       ],
-      "summary": "needs attention",
+      "summary": "no journal entries yet",
       "title": "Dashboard health"
     },
     {
@@ -221,7 +221,7 @@
     }
   ],
   "source": {
-    "healthDate": "2026-09-26",
+    "healthDate": "2026-09-27",
     "kind": "lucy-analyst",
     "liveCount": 185,
     "publishedBy": "lucy-analyst",
@@ -229,5 +229,5 @@
     "soldCount": 360
   },
   "status": "bad",
-  "summary": "185 live items across Apparel: 101, HVAC: 18, Units: 66. 110 quick wins. dashboard health: needs attention."
+  "summary": "185 live items across Apparel: 101, HVAC: 18, Units: 66. 111 quick wins. dashboard health: no journal entries yet."
 }
