@@ -22,26 +22,26 @@
       "title": "Box 1: hdmi transmitter"
     },
     {
-      "boxId": "2",
-      "evidence": "551 days listed; 382 days no action; No boost note; Needs title/description",
-      "reason": "Improve title/description before boosting or relisting.",
-      "severity": "high",
-      "title": "Box 2: Ev charger 1lvl"
-    },
-    {
       "boxId": "407",
       "evidence": "425 days listed; 425 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
+    },
+    {
+      "boxId": "419",
+      "evidence": "430 days listed; 430 days no action; No boost note; Needs title/description",
+      "reason": "Improve title/description before boosting or relisting.",
+      "severity": "high",
+      "title": "Box 419: table outdoor HPDE x2"
     }
   ],
   "cards": [
     {
-      "detail": "14 critical, 12 watch, 145 prep",
+      "detail": "13 critical, 12 watch, 141 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "189"
+      "value": "184"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "110"
+      "value": "107"
     },
     {
-      "detail": "71 snapshots today",
+      "detail": "73 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-10-05T17:51:14-04:00",
+  "generatedAt": "2026-10-05T18:21:21-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-10-05T17:51:14-04:00",
+  "publishedAt": "2026-10-05T18:21:21-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -87,13 +87,6 @@
           "boxId": "1",
           "detail": "hdmi transmitter | Fix listing | score 76 | 571 days listed, 571 days no action, No boost note, Needs title/description",
           "label": "Box 1",
-          "severity": "bad",
-          "value": "Improve title/description before boosting or relisting."
-        },
-        {
-          "boxId": "2",
-          "detail": "Ev charger 1lvl | Fix listing | score 76 | 551 days listed, 382 days no action, No boost note, Needs title/description",
-          "label": "Box 2",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
@@ -122,6 +115,13 @@
           "boxId": "520",
           "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Fix listing | score 76 | 292 days listed, 292 days no action, No boost note, Needs title/description",
           "label": "Box 520",
+          "severity": "bad",
+          "value": "Improve title/description before boosting or relisting."
+        },
+        {
+          "boxId": "546",
+          "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery | Fix listing | score 76 | 243 days listed, 243 days no action, No boost note, Needs title/description",
+          "label": "Box 546",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         }
@@ -153,13 +153,6 @@
           "value": "Write a stronger title/description before paying for ads."
         },
         {
-          "boxId": "2",
-          "detail": "Ev charger 1lvl",
-          "label": "Box 2",
-          "severity": "watch",
-          "value": "Write a stronger title/description before paying for ads."
-        },
-        {
           "boxId": "407",
           "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color)",
           "label": "Box 407",
@@ -172,6 +165,13 @@
           "label": "Box 419",
           "severity": "watch",
           "value": "Write a stronger title/description before paying for ads."
+        },
+        {
+          "boxId": "515",
+          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display",
+          "label": "Box 515",
+          "severity": "watch",
+          "value": "Write a stronger title/description before paying for ads."
         }
       ],
       "summary": "Small actions likely to improve listing quality or attention before spending more ad money.",
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "71 snapshots reviewed.",
+          "detail": "73 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -195,7 +195,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "305 sold / $65697"
+          "value": "306 sold / $66217"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -207,13 +207,13 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "eBay",
           "severity": "ok",
-          "value": "12 sold / $1895"
+          "value": "14 sold / $2020"
         },
         {
-          "detail": "missingFinalPrice: 8, missingSoldThrough: 4, missingSoldDay: 6",
+          "detail": "missingFinalPrice: 10, missingSoldThrough: 4, missingSoldDay: 8",
           "label": "Sales cleanup",
           "severity": "watch",
-          "value": "18 missing sold fields"
+          "value": "22 missing sold fields"
         }
       ],
       "summary": "Archived rows are used as the learning set for channels, revenue, and cleanup gaps.",
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-10-05",
     "kind": "lucy-analyst",
-    "liveCount": 189,
+    "liveCount": 184,
     "publishedBy": "lucy-analyst",
     "rowCount": 551,
-    "soldCount": 362
+    "soldCount": 367
   },
   "status": "bad",
-  "summary": "189 live items across Apparel: 101, HVAC: 18, Units: 70. 110 quick wins. dashboard health: all ok."
+  "summary": "184 live items across Apparel: 101, HVAC: 17, Units: 66. 107 quick wins. dashboard health: all ok."
 }
