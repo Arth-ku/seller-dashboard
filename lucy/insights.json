@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "15 critical, 13 watch, 143 prep",
+      "detail": "15 critical, 14 watch, 143 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "186"
+      "value": "187"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "106"
+      "value": "107"
     },
     {
-      "detail": "60 snapshots today",
+      "detail": "62 snapshots today",
       "label": "Dashboard health",
       "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-10-16T15:11:10-04:00",
+  "generatedAt": "2026-10-16T15:41:16-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-10-16T15:11:10-04:00",
+  "publishedAt": "2026-10-16T15:41:16-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -180,7 +180,7 @@
     {
       "items": [
         {
-          "detail": "60 snapshots reviewed.",
+          "detail": "62 snapshots reviewed.",
           "label": "Health journal",
           "severity": "ok",
           "value": "No dashboard health problems in today's journal."
@@ -210,10 +210,10 @@
           "value": "14 sold / $2020"
         },
         {
-          "detail": "missingFinalPrice: 10, missingSoldThrough: 4, missingSoldDay: 8",
+          "detail": "missingFinalPrice: 9, missingSoldThrough: 3, missingSoldDay: 7",
           "label": "Sales cleanup",
           "severity": "watch",
-          "value": "22 missing sold fields"
+          "value": "19 missing sold fields"
         }
       ],
       "summary": "Archived rows are used as the learning set for channels, revenue, and cleanup gaps.",
@@ -223,11 +223,11 @@
   "source": {
     "healthDate": "2026-10-16",
     "kind": "lucy-analyst",
-    "liveCount": 186,
+    "liveCount": 187,
     "publishedBy": "lucy-analyst",
     "rowCount": 553,
-    "soldCount": 367
+    "soldCount": 366
   },
   "status": "bad",
-  "summary": "186 live items across Apparel: 101, HVAC: 17, Units: 68. 106 quick wins. dashboard health: all ok."
+  "summary": "187 live items across Apparel: 101, HVAC: 17, Units: 69. 107 quick wins. dashboard health: all ok."
 }
