@@ -2,35 +2,35 @@
   "actions": [
     {
       "boxId": "3",
-      "evidence": "292 days listed; 191 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "293 days listed; 192 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
       "boxId": "582",
-      "evidence": "249 days listed; 159 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "250 days listed; 160 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 582: HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo"
     },
     {
       "boxId": "1",
-      "evidence": "590 days listed; 590 days no action; No boost note; Needs title/description",
+      "evidence": "591 days listed; 591 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 1: hdmi transmitter"
     },
     {
       "boxId": "515",
-      "evidence": "338 days listed; 338 days no action; No boost note; Needs title/description",
+      "evidence": "339 days listed; 339 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 515: Verkstar Karaoke Machine for Adults, with Lyrics Display"
     },
     {
       "boxId": "407",
-      "evidence": "444 days listed; 444 days no action; No boost note",
+      "evidence": "445 days listed; 445 days no action; No boost note",
       "reason": "Refresh listing creative, then test a small boost.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
@@ -56,71 +56,71 @@
       "value": "106"
     },
     {
-      "detail": "94 snapshots today",
+      "detail": "2 snapshots today",
       "label": "Dashboard health",
-      "severity": "watch",
+      "severity": "ok",
       "value": "OK"
     }
   ],
-  "generatedAt": "2026-10-24T23:54:46-04:00",
+  "generatedAt": "2026-10-25T00:25:01-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-10-24T23:54:46-04:00",
+  "publishedAt": "2026-10-25T00:25:01-04:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
           "boxId": "3",
-          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 292 days listed, 191 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 293 days listed, 192 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "582",
-          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 80 | 249 days listed, 159 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 80 | 250 days listed, 160 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 582",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "1",
-          "detail": "hdmi transmitter | Fix listing | score 76 | 590 days listed, 590 days no action, No boost note, Needs title/description",
+          "detail": "hdmi transmitter | Fix listing | score 76 | 591 days listed, 591 days no action, No boost note, Needs title/description",
           "label": "Box 1",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "515",
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 338 days listed, 338 days no action, No boost note, Needs title/description",
+          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 76 | 339 days listed, 339 days no action, No boost note, Needs title/description",
           "label": "Box 515",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "407",
-          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Creative refresh | score 60 | 444 days listed, 444 days no action, No boost note",
+          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Creative refresh | score 60 | 445 days listed, 445 days no action, No boost note",
           "label": "Box 407",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "419",
-          "detail": "table outdoor HPDE x2 | Creative refresh | score 60 | 449 days listed, 449 days no action, No boost note",
+          "detail": "table outdoor HPDE x2 | Creative refresh | score 60 | 450 days listed, 450 days no action, No boost note",
           "label": "Box 419",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "520",
-          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Creative refresh | score 60 | 311 days listed, 311 days no action, No boost note",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Creative refresh | score 60 | 312 days listed, 312 days no action, No boost note",
           "label": "Box 520",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "546",
-          "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery | Creative refresh | score 60 | 262 days listed, 262 days no action, No boost note",
+          "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery | Creative refresh | score 60 | 263 days listed, 263 days no action, No boost note",
           "label": "Box 546",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
@@ -180,13 +180,13 @@
     {
       "items": [
         {
-          "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
-          "label": "NVMe backup mirror",
-          "severity": "watch",
-          "value": "warn - 107 min old"
+          "detail": "2 snapshots reviewed.",
+          "label": "Health journal",
+          "severity": "ok",
+          "value": "No dashboard health problems in today's journal."
         }
       ],
-      "summary": "needs attention",
+      "summary": "all ok",
       "title": "Dashboard health"
     },
     {
@@ -221,7 +221,7 @@
     }
   ],
   "source": {
-    "healthDate": "2026-10-24",
+    "healthDate": "2026-10-25",
     "kind": "lucy-analyst",
     "liveCount": 186,
     "publishedBy": "lucy-analyst",
@@ -229,5 +229,5 @@
     "soldCount": 367
   },
   "status": "bad",
-  "summary": "186 live items across Apparel: 101, HVAC: 17, Units: 68. 106 quick wins. dashboard health: needs attention."
+  "summary": "186 live items across Apparel: 101, HVAC: 17, Units: 68. 106 quick wins. dashboard health: all ok."
 }
