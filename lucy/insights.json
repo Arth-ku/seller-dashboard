@@ -22,26 +22,26 @@
       "title": "Box 1: hdmi transmitter"
     },
     {
-      "boxId": "515",
-      "evidence": "340 days listed; No boost note; Needs title/description",
-      "reason": "Improve title/description before boosting or relisting.",
-      "severity": "high",
-      "title": "Box 515: Verkstar Karaoke Machine for Adults, with Lyrics Display"
-    },
-    {
       "boxId": "407",
       "evidence": "446 days listed; 446 days no action; No boost note",
       "reason": "Refresh listing creative, then test a small boost.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
+    },
+    {
+      "boxId": "419",
+      "evidence": "451 days listed; 451 days no action; No boost note",
+      "reason": "Refresh listing creative, then test a small boost.",
+      "severity": "high",
+      "title": "Box 419: table outdoor HPDE x2"
     }
   ],
   "cards": [
     {
-      "detail": "14 critical, 17 watch, 143 prep",
+      "detail": "13 critical, 17 watch, 142 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "186"
+      "value": "184"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "106"
+      "value": "105"
     },
     {
-      "detail": "60 snapshots today",
+      "detail": "62 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-10-26T15:07:32-04:00",
+  "generatedAt": "2026-10-26T15:37:34-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-10-26T15:07:32-04:00",
+  "publishedAt": "2026-10-26T15:37:34-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -87,13 +87,6 @@
           "boxId": "1",
           "detail": "hdmi transmitter | Fix listing | score 76 | 592 days listed, 592 days no action, No boost note, Needs title/description",
           "label": "Box 1",
-          "severity": "bad",
-          "value": "Improve title/description before boosting or relisting."
-        },
-        {
-          "boxId": "515",
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display | Fix listing | score 66 | 340 days listed, No boost note, Needs title/description",
-          "label": "Box 515",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
@@ -122,6 +115,13 @@
           "boxId": "546",
           "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery | Creative refresh | score 60 | 264 days listed, 264 days no action, No boost note",
           "label": "Box 546",
+          "severity": "bad",
+          "value": "Refresh listing creative, then test a small boost."
+        },
+        {
+          "boxId": "576",
+          "detail": "(1box) Tangkula (Light Gray) 41,000 BTU Propane Patio Heater with Waterproof | Creative refresh | score 60 | 251 days listed, 251 days no action, No boost note",
+          "label": "Box 576",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         }
@@ -153,13 +153,6 @@
           "value": "Write a stronger title/description before paying for ads."
         },
         {
-          "boxId": "515",
-          "detail": "Verkstar Karaoke Machine for Adults, with Lyrics Display",
-          "label": "Box 515",
-          "severity": "watch",
-          "value": "Write a stronger title/description before paying for ads."
-        },
-        {
           "boxId": "407",
           "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color)",
           "label": "Box 407",
@@ -170,6 +163,13 @@
           "boxId": "419",
           "detail": "table outdoor HPDE x2",
           "label": "Box 419",
+          "severity": "watch",
+          "value": "Refresh creative, then try a small 3-day boost."
+        },
+        {
+          "boxId": "520",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table",
+          "label": "Box 520",
           "severity": "watch",
           "value": "Refresh creative, then try a small 3-day boost."
         }
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 2410 min old"
+          "value": "bad - 2441 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 2350 min old"
+          "value": "warn - 2381 min old"
         }
       ],
       "summary": "needs attention",
@@ -201,7 +201,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "307 sold / $66367"
+          "value": "308 sold / $66817"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -213,7 +213,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "eBay",
           "severity": "ok",
-          "value": "14 sold / $2020"
+          "value": "15 sold / $2106"
         },
         {
           "detail": "missingFinalPrice: 10, missingSoldThrough: 4, missingSoldDay: 8",
@@ -229,11 +229,11 @@
   "source": {
     "healthDate": "2026-10-26",
     "kind": "lucy-analyst",
-    "liveCount": 186,
+    "liveCount": 184,
     "publishedBy": "lucy-analyst",
     "rowCount": 554,
-    "soldCount": 368
+    "soldCount": 370
   },
   "status": "bad",
-  "summary": "186 live items across Apparel: 101, HVAC: 17, Units: 68. 106 quick wins. dashboard health: needs attention."
+  "summary": "184 live items across Apparel: 101, HVAC: 16, Units: 67. 105 quick wins. dashboard health: needs attention."
 }
