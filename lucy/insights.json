@@ -8,13 +8,6 @@
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
-      "boxId": "582",
-      "evidence": "253 days listed; 163 days no action; Boosted but still unsold; Needs title/description; Already discounted",
-      "reason": "Improve title/description before boosting or relisting.",
-      "severity": "high",
-      "title": "Box 582: HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo"
-    },
-    {
       "boxId": "1",
       "evidence": "594 days listed; 594 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
@@ -34,11 +27,18 @@
       "reason": "Refresh listing creative, then test a small boost.",
       "severity": "high",
       "title": "Box 419: table outdoor HPDE x2"
+    },
+    {
+      "boxId": "520",
+      "evidence": "315 days listed; 315 days no action; No boost note",
+      "reason": "Refresh listing creative, then test a small boost.",
+      "severity": "high",
+      "title": "Box 520: (1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table"
     }
   ],
   "cards": [
     {
-      "detail": "13 critical, 10 watch, 141 prep",
+      "detail": "12 critical, 11 watch, 141 prep",
       "label": "Live items",
       "severity": "bad",
       "value": "182"
@@ -56,15 +56,15 @@
       "value": "96"
     },
     {
-      "detail": "26 snapshots today",
+      "detail": "28 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-10-28T16:30:15-04:00",
+  "generatedAt": "2026-10-28T17:00:16-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-10-28T16:30:15-04:00",
+  "publishedAt": "2026-10-28T17:00:16-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -73,13 +73,6 @@
           "boxId": "3",
           "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 296 days listed, 195 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 3",
-          "severity": "bad",
-          "value": "Improve title/description before boosting or relisting."
-        },
-        {
-          "boxId": "582",
-          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 80 | 253 days listed, 163 days no action, Boosted but still unsold, Needs title/description, Already discounted",
-          "label": "Box 582",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
@@ -124,6 +117,13 @@
           "label": "Box 576",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
+        },
+        {
+          "boxId": "628",
+          "detail": "HAPPYGRILL Folding Dining Chairs Set of 2, Wood Kitchen Chairs with Padded Seat, Slatted Backrest, Wood Frame, Space-Saving, for Living Room, Kitchen, Restaurant (2, Beige & Brown) | Creative refresh | score 60 | 195 days listed, 195 days no action, No boost note",
+          "label": "Box 628",
+          "severity": "bad",
+          "value": "Refresh listing creative, then test a small boost."
         }
       ],
       "summary": "Top live inventory ranked by marketing stage, listing age, price/content readiness, boost signals, and idle time.",
@@ -135,13 +135,6 @@
           "boxId": "3",
           "detail": "britannica micropaedia in Garage",
           "label": "Box 3",
-          "severity": "watch",
-          "value": "Write a stronger title/description before paying for ads."
-        },
-        {
-          "boxId": "582",
-          "detail": "HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo",
-          "label": "Box 582",
           "severity": "watch",
           "value": "Write a stronger title/description before paying for ads."
         },
@@ -172,6 +165,13 @@
           "label": "Box 520",
           "severity": "watch",
           "value": "Refresh creative, then try a small 3-day boost."
+        },
+        {
+          "boxId": "546",
+          "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery",
+          "label": "Box 546",
+          "severity": "watch",
+          "value": "Refresh creative, then try a small 3-day boost."
         }
       ],
       "summary": "Small actions likely to improve listing quality or attention before spending more ad money.",
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 5365 min old"
+          "value": "bad - 5395 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 5305 min old"
+          "value": "warn - 5335 min old"
         }
       ],
       "summary": "needs attention",
