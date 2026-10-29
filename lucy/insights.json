@@ -38,7 +38,7 @@
   ],
   "cards": [
     {
-      "detail": "13 critical, 12 watch, 141 prep",
+      "detail": "12 critical, 13 watch, 141 prep",
       "label": "Live items",
       "severity": "bad",
       "value": "182"
@@ -56,15 +56,15 @@
       "value": "96"
     },
     {
-      "detail": "50 snapshots today",
+      "detail": "52 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-10-29T12:37:16-04:00",
+  "generatedAt": "2026-10-29T13:07:28-04:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-10-29T12:37:16-04:00",
+  "publishedAt": "2026-10-29T13:07:28-04:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 6577 min old"
+          "value": "bad - 6607 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 6517 min old"
+          "value": "warn - 6547 min old"
         }
       ],
       "summary": "needs attention",
