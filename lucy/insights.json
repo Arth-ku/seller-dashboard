@@ -41,7 +41,7 @@
       "detail": "8 critical, 16 watch, 136 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "195"
+      "value": "197"
     },
     {
       "detail": "Box 3",
@@ -56,15 +56,15 @@
       "value": "97"
     },
     {
-      "detail": "49 snapshots today",
+      "detail": "51 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-11-01T11:32:16-05:00",
+  "generatedAt": "2026-11-01T12:02:16-05:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-11-01T11:32:16-05:00",
+  "publishedAt": "2026-11-01T12:02:16-05:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 10890 min old"
+          "value": "bad - 10921 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 10830 min old"
+          "value": "warn - 10860 min old"
         }
       ],
       "summary": "needs attention",
@@ -229,11 +229,11 @@
   "source": {
     "healthDate": "2026-11-01",
     "kind": "lucy-analyst",
-    "liveCount": 195,
+    "liveCount": 197,
     "publishedBy": "lucy-analyst",
-    "rowCount": 570,
+    "rowCount": 572,
     "soldCount": 375
   },
   "status": "bad",
-  "summary": "195 live items across Apparel: 101, HVAC: 16, Units: 78. 97 quick wins. dashboard health: needs attention."
+  "summary": "197 live items across Apparel: 101, HVAC: 16, Units: 80. 97 quick wins. dashboard health: needs attention."
 }
