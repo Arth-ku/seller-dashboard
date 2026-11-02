@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "8 critical, 16 watch, 138 prep",
+      "detail": "8 critical, 16 watch, 137 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "213"
+      "value": "212"
     },
     {
       "detail": "Box 3",
@@ -56,15 +56,15 @@
       "value": "104"
     },
     {
-      "detail": "77 snapshots today",
+      "detail": "79 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-11-01T18:34:56-05:00",
+  "generatedAt": "2026-11-01T19:04:57-05:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-11-01T18:34:56-05:00",
+  "publishedAt": "2026-11-01T19:04:58-05:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 11317 min old"
+          "value": "bad - 11347 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 11257 min old"
+          "value": "warn - 11287 min old"
         }
       ],
       "summary": "needs attention",
@@ -201,7 +201,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "313 sold / $67567"
+          "value": "314 sold / $68117"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -229,11 +229,11 @@
   "source": {
     "healthDate": "2026-11-01",
     "kind": "lucy-analyst",
-    "liveCount": 213,
+    "liveCount": 212,
     "publishedBy": "lucy-analyst",
     "rowCount": 589,
-    "soldCount": 376
+    "soldCount": 377
   },
   "status": "bad",
-  "summary": "213 live items across Apparel: 101, HVAC: 16, Units: 96. 104 quick wins. dashboard health: needs attention."
+  "summary": "212 live items across Apparel: 101, HVAC: 15, Units: 96. 104 quick wins. dashboard health: needs attention."
 }
