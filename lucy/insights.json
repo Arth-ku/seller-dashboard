@@ -38,10 +38,10 @@
   ],
   "cards": [
     {
-      "detail": "8 critical, 15 watch, 134 prep",
+      "detail": "8 critical, 14 watch, 131 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "222"
+      "value": "219"
     },
     {
       "detail": "Box 3",
@@ -53,18 +53,18 @@
       "detail": "Launch, content, price, and refresh moves Lucy can see now",
       "label": "Quick wins",
       "severity": "watch",
-      "value": "107"
+      "value": "105"
     },
     {
-      "detail": "65 snapshots today",
+      "detail": "67 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-11-03T16:21:33-05:00",
+  "generatedAt": "2026-11-03T16:52:00-05:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-11-03T16:21:33-05:00",
+  "publishedAt": "2026-11-03T16:52:00-05:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 14065 min old"
+          "value": "bad - 14095 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 14004 min old"
+          "value": "warn - 14035 min old"
         }
       ],
       "summary": "needs attention",
@@ -201,7 +201,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "314 sold / $68117"
+          "value": "316 sold / $68467"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -229,11 +229,11 @@
   "source": {
     "healthDate": "2026-11-03",
     "kind": "lucy-analyst",
-    "liveCount": 222,
+    "liveCount": 219,
     "publishedBy": "lucy-analyst",
-    "rowCount": 599,
-    "soldCount": 377
+    "rowCount": 598,
+    "soldCount": 379
   },
   "status": "bad",
-  "summary": "222 live items across Apparel: 101, HVAC: 15, Units: 106. 107 quick wins. dashboard health: needs attention."
+  "summary": "219 live items across Apparel: 101, HVAC: 15, Units: 103. 105 quick wins. dashboard health: needs attention."
 }
