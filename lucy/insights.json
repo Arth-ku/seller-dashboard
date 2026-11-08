@@ -2,35 +2,35 @@
   "actions": [
     {
       "boxId": "3",
-      "evidence": "306 days listed; 205 days no action; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "307 days listed; 206 days no action; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 3: britannica micropaedia in Garage"
     },
     {
       "boxId": "UNKNOWN102",
-      "evidence": "604 days listed; 604 days no action; No boost note; Needs title/description",
+      "evidence": "605 days listed; 605 days no action; No boost note; Needs title/description",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box UNKNOWN102: hdmi transmitter"
     },
     {
       "boxId": "593",
-      "evidence": "263 days listed; Boosted but still unsold; Needs title/description; Already discounted",
+      "evidence": "264 days listed; Boosted but still unsold; Needs title/description; Already discounted",
       "reason": "Improve title/description before boosting or relisting.",
       "severity": "high",
       "title": "Box 593: 582 HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo"
     },
     {
       "boxId": "407",
-      "evidence": "458 days listed; 458 days no action; No boost note",
+      "evidence": "459 days listed; 459 days no action; No boost note",
       "reason": "Refresh listing creative, then test a small boost.",
       "severity": "high",
       "title": "Box 407: LLDAILY moccha metal 4 chairs x2 (but dark gold color)"
     },
     {
       "boxId": "419",
-      "evidence": "463 days listed; 463 days no action; No boost note",
+      "evidence": "464 days listed; 464 days no action; No boost note",
       "reason": "Refresh listing creative, then test a small boost.",
       "severity": "high",
       "title": "Box 419: table outdoor HPDE x2"
@@ -56,71 +56,71 @@
       "value": "105"
     },
     {
-      "detail": "93 snapshots today",
+      "detail": "0 snapshots today",
       "label": "Dashboard health",
-      "severity": "bad",
-      "value": "BAD"
+      "severity": "watch",
+      "value": "UNKNOWN"
     }
   ],
-  "generatedAt": "2026-11-07T23:31:16-05:00",
+  "generatedAt": "2026-11-08T00:01:16-05:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-11-07T23:31:16-05:00",
+  "publishedAt": "2026-11-08T00:01:16-05:00",
   "schemaVersion": 1,
   "sections": [
     {
       "items": [
         {
           "boxId": "3",
-          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 306 days listed, 205 days no action, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "britannica micropaedia in Garage | Fix listing | score 80 | 307 days listed, 206 days no action, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 3",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "UNKNOWN102",
-          "detail": "hdmi transmitter | Fix listing | score 76 | 604 days listed, 604 days no action, No boost note, Needs title/description",
+          "detail": "hdmi transmitter | Fix listing | score 76 | 605 days listed, 605 days no action, No boost note, Needs title/description",
           "label": "Box UNKNOWN102",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "593",
-          "detail": "582 HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 70 | 263 days listed, Boosted but still unsold, Needs title/description, Already discounted",
+          "detail": "582 HAS 3 (594 - SOLD! 593, 582) GYMAX 2-Person Camping Cot Tent, Foldable Off-Ground Cot Bed Combo | Fix listing | score 70 | 264 days listed, Boosted but still unsold, Needs title/description, Already discounted",
           "label": "Box 593",
           "severity": "bad",
           "value": "Improve title/description before boosting or relisting."
         },
         {
           "boxId": "407",
-          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Creative refresh | score 60 | 458 days listed, 458 days no action, No boost note",
+          "detail": "LLDAILY moccha metal 4 chairs x2 (but dark gold color) | Creative refresh | score 60 | 459 days listed, 459 days no action, No boost note",
           "label": "Box 407",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "419",
-          "detail": "table outdoor HPDE x2 | Creative refresh | score 60 | 463 days listed, 463 days no action, No boost note",
+          "detail": "table outdoor HPDE x2 | Creative refresh | score 60 | 464 days listed, 464 days no action, No boost note",
           "label": "Box 419",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "520",
-          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Creative refresh | score 60 | 325 days listed, 325 days no action, No boost note",
+          "detail": "(1 box) Tangkula Acacia Wood Picnic Table, 4-Person Outdoor Rectangular Table | Creative refresh | score 60 | 326 days listed, 326 days no action, No boost note",
           "label": "Box 520",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "546",
-          "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery | Creative refresh | score 60 | 276 days listed, 276 days no action, No boost note",
+          "detail": "TET Lifepo4 Battery, BCI Group 140R Start and Stop Car Battery | Creative refresh | score 60 | 277 days listed, 277 days no action, No boost note",
           "label": "Box 546",
           "severity": "bad",
           "value": "Refresh listing creative, then test a small boost."
         },
         {
           "boxId": "542",
-          "detail": "NEW Patio Picnic Table Bench Set, 6-Person Acacia Wood Outdoor Dining | Channel shift | score 56 | 299 days listed, 153 days no action, Boosted but still unsold",
+          "detail": "NEW Patio Picnic Table Bench Set, 6-Person Acacia Wood Outdoor Dining | Channel shift | score 56 | 300 days listed, 154 days no action, Boosted but still unsold",
           "label": "Box 542",
           "severity": "bad",
           "value": "Stop repeating the same ad. Change angle, price, and channel."
@@ -180,19 +180,13 @@
     {
       "items": [
         {
-          "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
-          "label": "NVMe backup mirror",
-          "severity": "bad",
-          "value": "bad - 20259 min old"
-        },
-        {
-          "detail": "594.4 MB, 29 retained",
-          "label": "Database backups",
+          "detail": "0 snapshots reviewed.",
+          "label": "Health journal",
           "severity": "watch",
-          "value": "warn - 20198 min old"
+          "value": "No health journal entries yet."
         }
       ],
-      "summary": "needs attention",
+      "summary": "no journal entries yet",
       "title": "Dashboard health"
     },
     {
@@ -227,7 +221,7 @@
     }
   ],
   "source": {
-    "healthDate": "2026-11-07",
+    "healthDate": "2026-11-08",
     "kind": "lucy-analyst",
     "liveCount": 216,
     "publishedBy": "lucy-analyst",
@@ -235,5 +229,5 @@
     "soldCount": 383
   },
   "status": "bad",
-  "summary": "216 live items across Apparel: 101, HVAC: 15, Units: 100. 105 quick wins. dashboard health: needs attention."
+  "summary": "216 live items across Apparel: 101, HVAC: 15, Units: 100. 105 quick wins. dashboard health: no journal entries yet."
 }
