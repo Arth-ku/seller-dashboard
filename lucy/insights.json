@@ -41,7 +41,7 @@
       "detail": "8 critical, 15 watch, 130 prep",
       "label": "Live items",
       "severity": "bad",
-      "value": "216"
+      "value": "215"
     },
     {
       "detail": "Box 3",
@@ -56,15 +56,15 @@
       "value": "105"
     },
     {
-      "detail": "57 snapshots today",
+      "detail": "59 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-11-08T14:36:46-05:00",
+  "generatedAt": "2026-11-08T15:06:46-05:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-11-08T14:36:46-05:00",
+  "publishedAt": "2026-11-08T15:06:46-05:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 21152 min old"
+          "value": "bad - 21183 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 21092 min old"
+          "value": "warn - 21122 min old"
         }
       ],
       "summary": "needs attention",
@@ -201,7 +201,7 @@
           "detail": "Use this when deciding where to refresh similar live inventory.",
           "label": "Facebook",
           "severity": "ok",
-          "value": "319 sold / $68867"
+          "value": "320 sold / $69087"
         },
         {
           "detail": "Use this when deciding where to refresh similar live inventory.",
@@ -229,11 +229,11 @@
   "source": {
     "healthDate": "2026-11-08",
     "kind": "lucy-analyst",
-    "liveCount": 216,
+    "liveCount": 215,
     "publishedBy": "lucy-analyst",
     "rowCount": 599,
-    "soldCount": 383
+    "soldCount": 384
   },
   "status": "bad",
-  "summary": "216 live items across Apparel: 101, HVAC: 15, Units: 100. 105 quick wins. dashboard health: needs attention."
+  "summary": "215 live items across Apparel: 101, HVAC: 15, Units: 99. 105 quick wins. dashboard health: needs attention."
 }
