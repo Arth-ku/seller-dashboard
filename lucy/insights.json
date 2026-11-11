@@ -56,15 +56,15 @@
       "value": "106"
     },
     {
-      "detail": "32 snapshots today",
+      "detail": "34 snapshots today",
       "label": "Dashboard health",
       "severity": "bad",
       "value": "BAD"
     }
   ],
-  "generatedAt": "2026-11-11T08:00:29-05:00",
+  "generatedAt": "2026-11-11T08:30:39-05:00",
   "headline": "Lucy would work box 3 first.",
-  "publishedAt": "2026-11-11T08:00:29-05:00",
+  "publishedAt": "2026-11-11T08:30:39-05:00",
   "schemaVersion": 1,
   "sections": [
     {
@@ -183,13 +183,13 @@
           "detail": "1.3 GB mirrored, /srv/seller-dashboard-backup",
           "label": "NVMe backup mirror",
           "severity": "bad",
-          "value": "bad - 25084 min old"
+          "value": "bad - 25114 min old"
         },
         {
           "detail": "594.4 MB, 29 retained",
           "label": "Database backups",
           "severity": "watch",
-          "value": "warn - 25023 min old"
+          "value": "warn - 25054 min old"
         }
       ],
       "summary": "needs attention",
